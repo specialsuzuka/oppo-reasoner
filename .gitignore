@@ -1,0 +1,12 @@
+.idea
+executable/
+tdw_mat/transport_challenge_asset_bundles/
+tdw_mat/transport_challenge_multi_agent.egg-info/
+*.mp4
+*.egg-info
+*.log
+virtualhome/
+*.zip
+*.pkl
+tdw_mat/results/
+tdw_mat/results_oppo/
