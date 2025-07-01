@@ -8,5 +8,6 @@ tdw_mat/transport_challenge_multi_agent.egg-info/
 virtualhome/
 *.zip
 *.pkl
+*.jpg
 tdw_mat/results/
 tdw_mat/results_oppo/

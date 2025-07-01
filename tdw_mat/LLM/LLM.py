@@ -762,7 +762,6 @@ class LLM:
         message = None
 
         if self.communication:
-            print("++++++++++本次调用进行了通信!!+++++++++++++++")
             prompt = prompt.replace("$DIALOGUE_HISTORY$", dialogue_history_desc)
             if not action_history[-1].startswith("send a message"):
                 gen_prompt = self.generator_prompt_template.replace(
@@ -791,7 +790,7 @@ class LLM:
                     print(f"prompt_comm:\n{gen_prompt}")
                     print(f"output_comm:\n{message}")
 
-        available_plans, num, available_plans_list = self.get_available_plans(message)
+        available_plans, num, available_plans_list = self.get_available_plans(message) #因为要传入消息
         if num == 0 or (message is not None and num == 1):
             print("Warning! No available plans!")
             plan = None
@@ -856,6 +855,7 @@ class LLM:
             if self.debug:
                 print(f"output_plan_stage_1:\n{output}")
         plan, flags = self.parse_answer(available_plans_list, output)
+        #这里plan可能就是包含消息的动作
         if flags == "COMMUNICATION":
             self.communication_cost += 1
             llm_logger.info(f"进行了一次通信，当前通信次数{self.communication_cost}")

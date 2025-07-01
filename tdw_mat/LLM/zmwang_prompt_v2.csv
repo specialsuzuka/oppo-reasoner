@@ -1,0 +1,46 @@
+type,prompt
+base,"I'm $AGENT_NAME$. My friend $OPPO_NAME$ and I want to transport as many target objects as possible to the bed with the help of containers within 3000 steps. I can hold two thnithhsanings at a time, and they can be objects or containers. I can grasp containers and put objects into them to hold more objects at a time.
+Assume that you are an excellent collaborator who can cooperate tacitly .Given our shared goal, dialogue history, my progress, and previous actions, please help me infer what $OPPO_NAME$ might be currently doing or planning to do based on her/his location ,state, last actions and the goal. After that, choose the best available action to achieve the goal as soon as possible and avoid redundant planning and actions with collaborators. Note that a container can contain three objects, and will be lost once transported to the bed. I can only put objects into the container I hold after grasping it. All objects are denoted as <name> (id), such as <table> (712). Actions take several steps to finish. It may be costly to go to another room or transport to the bed, use these actions sparingly. 
+
+The decision-making process should strictly meet following requirements:
+
+1.First infer what $OPPO_NAME$ are doing and will do . This stage starts with [opponent reasoning begin] and ends with [opponent reasoning end] . The reasoning process should be concise,brief, and reliable based on action history,dialogue history and goals .At last, choose the most likely course of action  with [predict opponent action] at the beginning; 
+2.Second ,  given our shared goal, dialogue history, my progress, previous actions and, please help me choose the best available action to achieve the goal as soon as possible. This stage starts with [reasoning begin] and ends with [reasoning end] . 
+3.There are 5 allowed kinds of actions you can use to infer and take. 1) ‘goto’: move to a specified room. 2) ’goexplore’: explore a room for underlying target objects. 3) ‘gograsp’: go to grasp a specified target object. 4) ‘put’: Place an object into a specified container. 5) ’send a message’: generated a message and tell $OPPO_NAME$ important information like location , task progress, last action , new objects;
+4.if you choose to send a message, follow the template : send a message: $MESSAGE&
+Here is an example for you:
+[opponent reasoning begin]
+Bob is in the living room holding a container. Since the kitchen hasn't been explored yet, he's likely searching for objects to put in his container. Last he mentioned checking the sofa area.
+[opponent reasoning end]
+[predict opponent action] goexplore <Living Room> (5000)
+[reasoning begin]
+Bob is focused on living room exploration. I should check the kitchen where no one has looked. This reduces duplication and speeds up overall progress.
+[reasoning end]
+[my action] goexplore <Kitchen> (6000)
+
+- ALWAYS use the tags: [opponent reasoning begin], [opponent reasoning end], [predict opponent action], [reasoning begin], [reasoning end], [my action]
+- NEVER combine steps or skip tags
+- If sending a message, keep it short and informative
+- Action commands MUST match the allowed formats exactly
+
+Goal: $GOAL$
+Progress: $PROGRESS$
+Dialogue history:
+Alice: ""Hi, I'll let you know if I find any target objects and containers, finish any subgoals, and ask for your help when necessary.""
+Bob: ""Thanks! I'll let you know if I find any target objects and containers, finish any subgoals, and ask for your help when necessary.""
+$DIALOGUE_HISTORY$
+Previous actions: $ACTION_HISTORY$
+Available actions:
+$AVAILABLE_ACTIONS$
+Begin your response:"
+gen,"My friend $OPPO_NAME$ and I want to transport as many target objects as possible to the bed with the help of containers within 3000 steps. I can hold two things at a time, and they can be objects or containers. I can grasp containers and put objects into them to hold more objects at a time. Given our shared goal, dialogue history, my progress, and previous actions, please help me generate a short message to send to $OPPO_NAME$ to help us achieve the goal as soon as possible. Note that a container can contain three objects, and will be lost once transported to the bed. I can only put objects into the container I hold after grasping it. All objects are denoted as <name> (id), such as <table> (712). Actions take several steps to finish. It may be costly to go to another room or transport to the bed, use these actions sparingly.
+Goal: $GOAL$
+Progress: $PROGRESS$
+Previous actions: $ACTION_HISTORY$
+Dialogue history:
+Alice: ""Hi, I'll let you know if I find any target objects and containers, finish any subgoals, and ask for your help when necessary.""
+Bob: ""Thanks! I'll let you know if I find any target objects and containers, finish any subgoals, and ask for your help when necessary.""
+$DIALOGUE_HISTORY$
+
+Note: The generated message should be accurate, helpful and brief. Do not generate repetitive messages.
+"

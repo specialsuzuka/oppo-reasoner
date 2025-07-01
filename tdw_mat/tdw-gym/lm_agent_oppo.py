@@ -13,6 +13,9 @@ from agent_memory import AgentMemory
 
 from LLM.LLM_oppo import LLM_oppo
 
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
 CELL_SIZE = 0.125
 ANGLE = 15
 
@@ -435,6 +438,7 @@ class lm_agent_oppo:
             + len(self.new_object_list[2])
             > 0
         ):
+            #更新动作历史
             self.action_history[-1] = self.action_history[-1].replace(
                 self.plan, f"go to {self.current_room}"
             )
@@ -605,6 +609,7 @@ class lm_agent_oppo:
         if not self.gt_mask:
             self.obs["visible_objects"], self.obs["seg_mask"] = self.detect()
 
+        #无效动作处理
         if obs["valid"] == False:
             if self.last_action is not None and "object" in self.last_action:
                 self.object_map[np.where(self.id_map == self.last_action["object"])] = 0
@@ -614,12 +619,11 @@ class lm_agent_oppo:
             self.plan = None
             assert self.invalid_count < 10, "invalid action for 10 times"
 
-        print(f"是否启用通信：{self.communication}")
         # 处理通信消息
         if self.communication:
 
             # 遍历所有接收到的消息
-            for i in range(len(obs["messages"])):
+            for i in range(len(obs["messages"])): #长度为2 Alice+Bob
                 if obs["messages"][i] is not None:
                     # 将消息添加到对话历史中，格式为"智能体名称: 消息内容"
                     # 使用copy.deepcopy确保消息内容不会被意外修改
@@ -631,22 +635,25 @@ class lm_agent_oppo:
         self.forward = self.obs["agent"][3:]
         # 更新当前房间
         current_room = self.env_api["belongs_to_which_room"](self.position)
-        if current_room is not None:
+        if current_room is not None:                                                                                                                                            
             self.current_room = current_room
+        
         self.room_distance = self.env_api["get_room_distance"](self.position)
         if (
             self.current_room not in self.rooms_explored
             or self.rooms_explored[self.current_room] != "all"
         ):
             self.rooms_explored[self.current_room] = "part"
+
         if self.agent_id not in self.with_character:
             self.with_character.append(
                 self.agent_id
             )  # DWH: buggy env, need to solve later.
+        #查询手中的物体
         self.holding_objects_id = []
         self.with_oppo = []
         self.oppo_holding_objects_id = []
-        for x in self.obs["held_objects"]:
+        for x in self.obs["held_objects"]: #更新
             if x["type"] == 0:
                 self.holding_objects_id.append(x["id"])
                 if x["id"] not in self.with_character:
@@ -746,7 +753,7 @@ class lm_agent_oppo:
             save_img=self.save_img,
         )
 
-        if self.obs["status"] == 0:  # ongoing
+        if self.obs["status"] == 0:  # ongoing 这里就不调用了
             return {"type": "ongoing"}
 
         self.get_new_object_list()
@@ -797,7 +804,7 @@ class lm_agent_oppo:
             elif self.plan.startswith("put"):
                 action = self.putin()
             elif self.plan.startswith("transport"):
-                action = self.goput()
+                action = self.goput() #high-level action
             #    self.with_character = [self.agent_id]
             elif self.plan.startswith("send a message"):
                 # 发送消息动作
@@ -823,3 +830,38 @@ class lm_agent_oppo:
             # )
         self.last_action = action
         return action
+
+    
+
+    def visualize_semantic_map(self, save_path=None):
+        """
+        可视化语义地图（object_map），不同类型用不同颜色显示，并可选保存到文件
+        """
+        # 定义颜色映射：0-空地，1-普通物体，2-容器，3-目标物体
+        color_map = {
+            0: [255, 255, 255],  # 白色-空地
+            1: [0, 255, 0],      # 绿色-普通物体
+            2: [0, 0, 255],      # 蓝色-容器
+            3: [255, 0, 0],      # 红色-目标物体
+        }
+        h, w = self.object_map.shape
+        vis_map = np.zeros((h, w, 3), dtype=np.uint8)
+        for k, color in color_map.items():
+            vis_map[self.object_map == k] = color
+
+        plt.figure(figsize=(10, 5))
+        plt.imshow(vis_map)
+        plt.title("Semantic Map (object_map)")
+        # 图例
+        patches = [
+            mpatches.Patch(color=np.array(color_map[k])/255, label=f"type {k}")
+            for k in color_map
+        ]
+        plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.axis('off')
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
+        plt.show()
+
+    # 用法示例（在lm_agent_oppo对象中调用）：
+    # self.visualize_semantic_map("semantic_map.png")

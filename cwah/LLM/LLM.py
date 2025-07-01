@@ -5,10 +5,9 @@ import torch
 import json
 import os
 import pandas as pd
-from openai.error import OpenAIError
+from openai import OpenAIError
 import backoff
-
-
+from openai import OpenAI
 class LLM:
 	def __init__(self,
 				 source,  # 'huggingface' or 'openai'
@@ -43,13 +42,20 @@ class LLM:
 		self.cot = cot
 		self.source = source
 		self.lm_id = lm_id
-		self.chat = 'gpt-3.5-turbo' in lm_id or 'gpt-4' in lm_id
+		self.chat = 'gpt-3.5-turbo' in lm_id or 'gpt-4' in lm_id or 'deepseek-r1' in lm_id or 'chatglm' in lm_id or 'chatgpt' in lm_id
 		self.OPENAI_KEY = None
 		self.total_cost = 0
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 		if self.source == 'openai':
-			openai.api_key = os.getenv("OPENAI_KEY")
+			# openai.api_key = os.getenv("OPENAI_KEY")
+			print(f"Using OpenAI API key: {os.getenv('OPENAI_KEY')}")
+			print(f"Using OpenAI API base URL: {os.getenv('API_BASE')}")
+			client = OpenAI(
+                api_key=os.getenv("OPENAI_KEY"),
+                base_url="https://api.chatanywhere.tech/v1",
+            )
+			print(f"loading openai model =============={lm_id}")
 			if self.chat:
 				self.sampling_params = {
 					"max_tokens": sampling_parameters.max_tokens,
@@ -109,20 +115,33 @@ class LLM:
 				if source == 'openai':
 					try:
 						if self.chat:
-							response = openai.ChatCompletion.create(
+							# response = openai.ChatCompletion.create(
+							# 	model=lm_id, messages=prompt, **sampling_params
+							# )
+							response = client.chat.completions.create(
 								model=lm_id, messages=prompt, **sampling_params
 							)
 							# print(json.dumps(response, indent=4))
 							if self.debug:
 								with open(f"LLM/chat_raw.json", 'a') as f:
-									f.write(json.dumps(response, indent=4))
+									f.write(json.dumps(response.to_dict(), indent=4))
 									f.write('\n')
-							generated_samples = [response['choices'][i]['message']['content'] for i in
-												 range(sampling_params['n'])]
+							# generated_samples = [response['choices'][i]['message']['content'] for i in
+							# 					 range(sampling_params['n'])]
+							# 新版 SDK 的正确访问方式
+							generated_samples = [
+								choice.message.content 
+								for choice in response.choices  # 直接遍历 choices 对象
+							]
 							if 'gpt-4' in self.lm_id:
-								usage = response['usage']['prompt_tokens'] * 0.03 / 1000 + response['usage']['completion_tokens'] * 0.06 / 1000
+								# usage = response['usage']['prompt_tokens'] * 0.03 / 1000 + response['usage']['completion_tokens'] * 0.06 / 1000
+								# 计算费用（新版 SDK 的正确方式）
+								usage_cost = (response.usage.prompt_tokens * 0.03 / 1000 + 
+										response.usage.completion_tokens * 0.06 / 1000)
 							elif 'gpt-3.5' in self.lm_id:
-								usage = response['usage']['total_tokens'] * 0.002 / 1000
+								usage = ( response.usage.prompt_tokens + response.usage.completion_tokens ) * 0.002 / 1000
+							elif 'deepseek-r1' in self.lm_id:
+								usage = (( response.usage.prompt_tokens * 0.0024 )+ (response.usage.completion_tokens * 0.0096)) / 1000
 						# mean_log_probs = [np.mean(response['choices'][i]['logprobs']['token_logprobs']) for i in
 						# 				  range(sampling_params['n'])]
 						elif "text-" in lm_id:
@@ -132,7 +151,12 @@ class LLM:
 								with open(f"LLM/raw.json", 'a') as f:
 									f.write(json.dumps(response, indent=4))
 									f.write('\n')
-							generated_samples = [response['choices'][i]['text'] for i in range(sampling_params['n'])]
+							# generated_samples = [response['choices'][i]['text'] for i in range(sampling_params['n'])]
+							# 新版 SDK 的正确访问方式
+							generated_samples = [
+								choice.message.content 
+								for choice in response.choices  # 直接遍历 choices 对象
+							]
 						# mean_log_probs = [np.mean(response['choices'][i]['logprobs']['token_logprobs']) for i in
 						# 			  range(sampling_params['n'])]
 						else:
@@ -160,6 +184,8 @@ class LLM:
 				else:
 					raise ValueError("invalid source")
 				# generated_samples = [sample.strip().lower() for sample in generated_samples]
+				if self.debug:
+					print(f"generated_samples: {generated_samples}")
 				return generated_samples, usage
 
 			return _generate
@@ -393,7 +419,7 @@ class LLM:
 				gen_prompt = gen_prompt.replace('$DIALOGUE_HISTORY$', dialogue_history_desc)
 				gen_prompt = gen_prompt + f"\n{self.agent_name}:"
 				chat_prompt = [{"role": "user", "content": gen_prompt}]
-				outputs, usage = self.generator(chat_prompt if self.chat else gen_prompt, self.sampling_params)
+				outputs, usage = self.generator(chat_prompt if self.chat else gen_prompt, self.sampling_params)	
 				self.total_cost += usage
 				message = outputs[0]
 				info['message_generator_prompt'] = gen_prompt

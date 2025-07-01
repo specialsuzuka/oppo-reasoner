@@ -74,6 +74,7 @@ class Challenge:
         self.output_dir = output_dir
         self.max_frames = max_frames
         self.save_img = save_img
+        print(data_path)
         self.data = json.load(open(os.path.join(data_prefix, data_path), "r"))
         self.logger.info("done")
 

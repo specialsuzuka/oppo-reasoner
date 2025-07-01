@@ -6,7 +6,7 @@ python testing_agents/test_vision_LLMs.py \
 --obs_type normal_image \
 --executable_file ../executable/linux_exec.v2.3.0.x86_64 \
 --base-port 6414 \
---lm_id gpt-4 \
+--lm_id deepseek-r1 \
 --source openai \
 --t 0.7 \
 --max_tokens 256 \

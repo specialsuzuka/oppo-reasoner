@@ -358,7 +358,7 @@ class LLM_oppo:
         解析模型回答
 
         参数:
-            available_actions: 可用动作列表
+            available_actions: 可用动作列表 = action list
             text: 模型生成的文本
 
         返回:
@@ -711,31 +711,42 @@ class LLM_oppo:
 
         return plans, len(available_plans), available_plans
 
-    def parse_oppo_content(self, text):
+    def parse_model_response(self, text):
         """
-        解析包含特定标记的文本，提取两部分内容：
-        1. "Reasoning about xxx:" 后面的内容
-        2. "My next action:" 后面的内容
+        解析模型响应文本，提取四个关键部分：
+        1. 对手推理内容 ([opponent reasoning begin] 到 [opponent reasoning end])
+        2. 预测的对手行动 ([predict opponent action] 开头的内容)
+        3. 自身推理内容 ([reasoning begin] 到 [reasoning end])
+        4. 选择的动作 ([my action]: 开头的内容)
 
         参数:
-        text (str): 包含Answer的完整文本
+        text (str): 模型生成的完整响应文本
 
         返回:
-        tuple: (reasoning_content, next_action_content)
+        tuple: (opponent_reasoning, predicted_opponent_action, 
+                self_reasoning, chosen_action)
         """
-        # 解析第一部分：Reasoning about xxx
-        reasoning_pattern = r"1\.\s*Reasoning about.*?:\s*(.*?)(?=2\.|$)"
-        reasoning_match = re.search(reasoning_pattern, text, re.DOTALL)
-        reasoning_content = (
-            reasoning_match.group(1).strip() if reasoning_match else None
-        )
+        # 1. 解析对手推理部分
+        oppo_reasoning_pattern = r"\[opponent reasoning begin\](.*?)\[opponent reasoning end\]"
+        oppo_match = re.search(oppo_reasoning_pattern, text, re.DOTALL)
+        opponent_reasoning = oppo_match.group(1).strip() if oppo_match else None
 
-        # 解析第二部分：My next action
-        action_pattern = r"2\.\s*My next action:\s*(.*)"
-        action_match = re.search(action_pattern, text, re.DOTALL)
-        next_action_content = action_match.group(1).strip() if action_match else None
+        # 2. 解析预测的对手行动
+        pred_oppo_pattern = r"\[predict opponent action\]\s*(.*?)(?=\n|$|\[)"
+        pred_match = re.search(pred_oppo_pattern, text)
+        predicted_opponent_action = pred_match.group(1).strip() if pred_match else None
 
-        return reasoning_content, next_action_content
+        # 3. 解析自身推理部分
+        self_reasoning_pattern = r"\[reasoning begin\](.*?)\[reasoning end\]"
+        self_reasoning_match = re.search(self_reasoning_pattern, text, re.DOTALL)
+        self_reasoning = self_reasoning_match.group(1).strip() if self_reasoning_match else None
+
+        # 4. 解析选择的动作
+        action_pattern = r"\[my action\s*\]\s*(.*?)(?=\n|$)"
+        action_match = re.search(action_pattern, text)
+        chosen_action = action_match.group(1).strip() if action_match else None
+
+        return opponent_reasoning, predicted_opponent_action, self_reasoning, chosen_action
 
     def run(
         self,
@@ -790,7 +801,8 @@ class LLM_oppo:
         prompt = prompt.replace("$PROGRESS$", progress_desc)
         prompt = prompt.replace("$ACTION_HISTORY$", action_history_desc)
         prompt = prompt.replace("$DIALOGUE_HISTORY$", dialogue_history_desc)
-        message = None
+
+        # message = None
 
         # 注释掉原本的通信部分
 
@@ -825,7 +837,7 @@ class LLM_oppo:
         #             print(f"output_comm:\n{message}")
         # # 获取可用的动作列表
         available_plans, num, available_plans_list = self.get_available_plans()
-        if num == 0 or (message is not None and num == 1):
+        if num == 0 or (num == 1):
             print("Warning! No available plans!")
             plan = None
             info.update({"num_available_actions": num, "plan": None})
@@ -892,29 +904,15 @@ class LLM_oppo:
             # info['usage_step_1'] = usage
             if self.debug:
                 print(f"output_plan_stage_1:\n{output}")
-        # print("LLM_output_parse_results:", output)
 
         # 解析模型的回答
-        # print("原始回答:\n", origin_answer)
-        reasoning_text, action_text = self.parse_oppo_content(origin_answer)
-        # print(f"推理过程:\n{reasoning_text}\n")
-        # parts = output.split("2. My next action:")
-        # inferred_reasoning = parts[0].strip()
-        # print(f"推理过程:\n{inferred_reasoning}\n")
-        # action_text = (
-        #     parts[1].strip()
-        #     if len(parts) > 1
-        #     else oppo_logger.error("错误：No action text found in output.")
-        # )
-        # print(f"动作输出:\n{action_text}\n")
-        if action_text.startswith("[COMMUNICATE]"):
-            plan = f"send a message: {action_text[14:].strip()}"
+        print("原始回答:\n", output)
+        opponent_reasoning, predicted_opponent_action, self_reasoning, chosen_action = self.parse_model_response(output)
+        if chosen_action.startswith("send a message"):
+            plan = f"send a message: {chosen_action[14:].strip()}"
             flags = "Communication"
-            self.communication_cost += 1
-            oppo_logger.info(f"{self.agent_name}模型选择了通信动作: {plan}\n")
-            oppo_logger.info(f"当前通信了{self.communication_cost}次")
         else:
-            plan, flags = self.parse_answer(available_plans_list, action_text)
+            plan, flags = self.parse_answer(available_plans_list, chosen_action)
             oppo_logger.info(f"模型选择的动作: {plan}\n")
 
         # plan, flags = self.parse_answer(available_plans_list, output)

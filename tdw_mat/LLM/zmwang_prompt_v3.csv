@@ -1,0 +1,90 @@
+type,prompt
+base,"I'm $AGENT_NAME$. My friend $OPPO_NAME$ and I want to transport as many target objects as possible to the bed with the help of containers within 3000 steps. Important constraints:
+
+- I can hold two things at a time (objects or containers)
+- Containers can hold up to 3 objects
+- Containers are lost when transported to the bed
+- Objects can only be put into containers I'm holding
+- Objects are denoted as <name> (id)
+- Actions cost steps (especially moving between rooms or transporting)
+
+As an excellent collaborator, follow these steps STRICTLY:
+
+### Step 1: Opponent Reasoning [REQUIRED FORMAT]
+[opponent reasoning begin]
+Analyze $OPPO_NAME$ based on:
+- Location: $OPPO_LOCATION$
+- Holding: $OPPO_HOLDING$
+- Last actions: $OPPO_LAST_ACTION$
+- Dialogue: $DIALOGUE_HISTORY$
+
+Infer:
+- Their current activity
+- Likely next move
+- How this relates to our shared goal
+[opponent reasoning end]
+
+### Step 2: Predict Opponent Action [REQUIRED FORMAT]
+[predict opponent action] {EXACT ACTION DESCRIPTION}
+
+### Step 3: My Reasoning [REQUIRED FORMAT]
+[reasoning begin]
+Explain my decision considering:
+- My progress: $PROGRESS$
+- My location: $MY_LOCATION$
+- What I'm holding: $MY_HOLDING$
+- How my action complements $OPPO_NAME$
+- How this action moves us toward the goal efficiently
+[reasoning end]
+
+### Step 4: Choose Action [REQUIRED FORMAT]
+[my action] {EXACT ACTION COMMAND}
+
+ACTION SELECTION RULES:
+1. YOU MUST CHOOSE EXACTLY ONE ACTION FROM THE ""AVAILABLE ACTIONS"" LIST BELOW
+2. DO NOT MODIFY ACTION STRINGS - USE THEM EXACTLY AS PROVIDED
+3. For ""send a message"" action: 
+   - Create a concise message
+   - Use the format: send a message: ""Your message here""
+   - Messages should convey key information like: 
+     * Location updates
+     * Task progress
+     * Request for help
+     * New object discoveries
+
+### STRICT OUTPUT REQUIREMENTS
+- ALWAYS use the tags: [opponent reasoning begin], [opponent reasoning end], [predict opponent action], [reasoning begin], [reasoning end], [my action]
+- NEVER combine steps or skip tags
+- If sending a message, keep it short and informative
+- Action commands MUST match the allowed formats exactly
+
+Example Output:
+[opponent reasoning begin]
+Bob is in the living room holding a container. Since the kitchen hasn't been explored yet, he's likely searching for objects to put in his container. Last he mentioned checking the sofa area.
+[opponent reasoning end]
+[predict opponent action] goexplore <Living Room> (5000)
+[reasoning begin]
+Bob is focused on living room exploration. I should check the kitchen where no one has looked. This reduces duplication and speeds up overall progress.
+[reasoning end]
+[my action] goexplore <Kitchen> (6000)
+
+Goal: $GOAL$
+Progress: $PROGRESS$
+Dialogue history:
+$DIALOGUE_HISTORY$
+Previous actions: $ACTION_HISTORY$
+Available actions:
+$AVAILABLE_ACTIONS$
+
+Begin your response:"
+gen,"My friend $OPPO_NAME$ and I want to transport as many target objects as possible to the bed with the help of containers within 3000 steps. I can hold two things at a time, and they can be objects or containers. I can grasp containers and put objects into them to hold more objects at a time. Given our shared goal, dialogue history, my progress, and previous actions, please help me generate a short message to send to $OPPO_NAME$ to help us achieve the goal as soon as possible. Note that a container can contain three objects, and will be lost once transported to the bed. I can only put objects into the container I hold after grasping it. All objects are denoted as <name> (id), such as <table> (712). Actions take several steps to finish. It may be costly to go to another room or transport to the bed, use these actions sparingly.
+Goal: $GOAL$
+Progress: $PROGRESS$
+Previous actions: $ACTION_HISTORY$
+Dialogue history:
+Alice: ""Hi, I'll let you know if I find any target objects and containers, finish any subgoals, and ask for your help when necessary.""
+Bob: ""Thanks! I'll let you know if I find any target objects and containers, finish any subgoals, and ask for your help when necessary.""
+$DIALOGUE_HISTORY$
+
+Note: The generated message should be accurate, helpful and brief. Do not generate repetitive messages.
+"

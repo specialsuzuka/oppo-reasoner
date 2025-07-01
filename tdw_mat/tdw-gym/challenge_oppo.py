@@ -29,13 +29,14 @@ class Challenge_oppo:
     def __init__(
         self,
         logger,
+        time_logger,
         port,
         data_path,
         output_dir,
         number_of_agents=2,
         max_frames=3000,
         launch_build=True,
-        screen_size=512,
+        screen_size=256,
         data_prefix="dataset/nips_dataset/",
         gt_mask=True,
         save_img=True,
@@ -69,6 +70,7 @@ class Challenge_oppo:
         )
         self.gt_mask = gt_mask
         self.logger = logger
+        self.time_logger = time_logger
         self.logger.debug(port)
         self.logger.info("Environment Created")
         self.output_dir = output_dir
@@ -89,6 +91,7 @@ class Challenge_oppo:
         返回:
             float: 平均完成率
         """
+
         total_finish = 0.0
         if eval_episodes[0] == -1:
             eval_episodes = range(len(self.data))
@@ -97,8 +100,10 @@ class Challenge_oppo:
         start = time.time()
         results = {}
         for i, episode in enumerate(eval_episodes):
+            
             print(f"当前执行的episode为：{episode}")
             start_time = time.time()
+
             # 检查是否已经评估过该回合
             if os.path.exists(
                 os.path.join(self.output_dir, str(episode), "result_episode.json")
@@ -176,10 +181,14 @@ class Challenge_oppo:
             self.logger.info(f"Environment Reset. Took {time.time() - start_time} secs")
 
             # 执行评估过程
+            episode_start_time = time.time()  # 记录本episode总计时
+            act_total_time = 0.0  # 记录act方法总时间
+            act_num = 0
             local_finish = self.env.check_goal()
             done = False
             step_num = 0
-            communication_num = 0
+            communication_num_0 = 0
+            communication_num_1 = 0
             local_reward = 0.0
             while not done:
                 step_num += 1
@@ -190,17 +199,22 @@ class Challenge_oppo:
                         os.path.join(self.output_dir, str(episode), "Images")
                     )
                 for agent_id, agent in enumerate(agents):
-                    # print(f"agent_id:{agent_id}\n")
-                    # print(f"agent状态：{state[str(agent_id)]}")
-                    # print(f"agent 名字{str(agent_id)}")
+                    act_start = time.time()
                     actions[str(agent_id)] = agent.act(state[str(agent_id)])
-                    print(f"agent_id:{agent_id}, action: {actions[str(agent_id)]}\n")
-                    # 执行大模型推理获得动作
+                    act_end = time.time()
+                    act_num += 1
+                    act_total_time += (act_end - act_start)
+                    print(actions[str(agent_id)]['type'])
+                    if actions[str(agent_id)]['type'] == 6 and agent_id ==0:
+                        communication_num_0 += 1
+                        print("Communication action taken by agent:", agent.agent_names[agent.agent_id])
+                    if actions[str(agent_id)]['type'] == 6 and agent_id ==1:
+                        communication_num_1 += 1
+                        print("Communication action taken by agent:", agent.agent_names[agent.agent_id])
+                    print(f"agent_name:{agent.agent_names[agent.agent_id]}, action: {actions[str(agent_id)]}\n")
+                    #这个地方
                 state, reward, done, info = self.env.step(actions)
-                for agent_id, agent in enumerate(agents):
-                    if actions[str(agent_id)] == "send a message":
-                        communication_num += 1
-                        print("Communication action taken by agent:", agent_id)
+                    
                 local_reward += reward
                 local_finish = self.env.check_goal()
                 self.logger.info(
@@ -209,13 +223,22 @@ class Challenge_oppo:
                 if done:
                     break
 
+            episode_total_time = time.time() - episode_start_time
+            self.time_logger.info(f"Episode {episode} total time: {episode_total_time:.4f} secs")
+            self.time_logger.info(f"Episode {episode} total act() time: {act_total_time:.4f} secs")
+
             # 记录结果
             total_finish += local_finish[0] / local_finish[1]
             result = {
                 "finish": local_finish[0],
                 "total": local_finish[1],
                 "step_num": step_num,
-                "communication num": communication_num
+                "frame": self.env.num_frames,
+                "communication num_0": communication_num_0,
+                "communication num_1": communication_num_1,
+                "episode_total_time": episode_total_time,
+                "act_total_time": act_total_time,
+                "act_num": act_num
             }
             with open(
                 os.path.join(self.output_dir, str(episode), "result_episode.json"), "w"
@@ -244,7 +267,7 @@ def init_logs(output_dir, name="simple_example"):
     logger.setLevel(logging.DEBUG)
     fh = logging.FileHandler(os.path.join(output_dir, "output.log"))
     fh.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler()
+    ch = logging.StreamHandler() # 控制台输出
     ch.setLevel(logging.INFO)
 
     formatter = logging.Formatter(
@@ -254,7 +277,19 @@ def init_logs(output_dir, name="simple_example"):
     ch.setFormatter(formatter)
     logger.addHandler(fh)
     logger.addHandler(ch)
-    return logger
+
+    # 新增一个logger用于记录时间信息
+    time_logger = logging.getLogger(f"{name}_time")
+    time_logger.setLevel(logging.DEBUG)
+    time_fh = logging.FileHandler(os.path.join(output_dir, "time.log"))
+    time_fh.setLevel(logging.DEBUG)
+    time_formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s"
+    )
+    time_fh.setFormatter(time_formatter)
+    time_logger.addHandler(time_fh)
+
+    return logger, time_logger
 
 
 def main():
@@ -320,10 +355,11 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     args.output_dir = os.path.join(args.output_dir, args.run_id)
     os.makedirs(args.output_dir, exist_ok=True)
-    logger = init_logs(args.output_dir)
+    logger,time_logger = init_logs(args.output_dir)
 
     challenge = Challenge_oppo(
         logger,
+        time_logger,
         args.port,
         args.data_path,
         args.output_dir,
