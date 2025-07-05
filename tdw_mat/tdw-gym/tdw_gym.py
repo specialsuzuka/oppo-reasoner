@@ -470,7 +470,7 @@ class TDW(Env):
                 for object_id in self.segmentation_colors:
                     segmentation_color = tuple(self.segmentation_colors[object_id])
                     object_name = self.object_names[object_id]
-                    if segmentation_color in colors:
+                    if segmentation_color in colors:#colors is the what specific agent see,s_color is the whole thing
                         obs[id]['visible_objects'].append({
                             'id': object_id,
                             'type': self.get_object_type(object_id),
@@ -502,7 +502,7 @@ class TDW(Env):
                     'name': None,
                 })
             x, y, z = self.controller.replicants[replicant_id].dynamic.transform.position
-            fx, fy, fz = self.controller.replicants[replicant_id].dynamic.transform.forward
+            fx, fy, fz = self.controller.replicants[replicant_id].dynamic.transform.forward# what direction of the agent?
             obs[id]['agent'] = [x, y, z, fx, fy, fz]
             held_objects = list(self.controller.state.replicants[replicant_id].values())
             obs[id]['held_objects'] = []

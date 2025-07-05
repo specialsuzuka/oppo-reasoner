@@ -717,8 +717,8 @@ class lm_agent_oppo:
 
         ignore_obstacles = []
         ignore_ids = []
-        self.with_character = [self.agent_id]
-        temp_with_oppo = []
+        self.with_character = [self.agent_id]##
+        temp_with_oppo = []##
         for x in self.obs["held_objects"]:
             if x is None or x["id"] is None:
                 continue
@@ -734,8 +734,8 @@ class lm_agent_oppo:
         for x in self.obs["oppo_held_objects"]:
             if x is None or x["id"] is None:
                 continue
-            temp_with_oppo.append(x["id"])
-            if "contained" in x:
+            temp_with_oppo.append(x["id"])## temp with oppo?
+            if "contained" in x:##contain structure
                 for y in x["contained"]:
                     if y is not None:
                         temp_with_oppo.append(y)

@@ -184,7 +184,7 @@ class AgentMemory():
         可选择保存当前地图图片。
         """
         self.obs = obs
-        self.ignore_logic(self.obs['current_frames'], ignore_ids, ignore_obstacles)
+        self.ignore_logic(self.obs['current_frames'], ignore_ids, ignore_obstacles)## ignore?
         self.local_step += 1
         self.get_object_list()
         local_known_map = self.dep2map()
