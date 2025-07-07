@@ -596,7 +596,7 @@ class lm_agent_oppo:
         执行动作
 
         参数:
-            obs: 环境观察
+            obs: 环境观察 文本形式
 
         返回:
             action: 要执行的动作
