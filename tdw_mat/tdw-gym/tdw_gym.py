@@ -609,7 +609,7 @@ class TDW(Env):
                 inst[x] = []
         return self.add_name(inst)
 
-    def step(self, actions):
+    def step(self, actions):# message in action and send to the environment
         '''
         Run one timestep of the environment's dynamics
         '''

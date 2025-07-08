@@ -42,18 +42,18 @@ class LLM:
 		self.cot = cot
 		self.source = source
 		self.lm_id = lm_id
-		self.chat = 'gpt-3.5-turbo' in lm_id or 'gpt-4' in lm_id or 'deepseek-r1' in lm_id or 'chatglm' in lm_id or 'chatgpt' in lm_id
+		self.chat = 'gpt-3.5-turbo' in lm_id or 'gpt-4' in lm_id or 'deepseek' in lm_id or 'chatglm' in lm_id or 'chatgpt' in lm_id
 		self.OPENAI_KEY = None
 		self.total_cost = 0
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 		if self.source == 'openai':
 			# openai.api_key = os.getenv("OPENAI_KEY")
-			print(f"Using OpenAI API key: {os.getenv('OPENAI_KEY')}")
-			print(f"Using OpenAI API base URL: {os.getenv('API_BASE')}")
+			#print(f"Using OpenAI API key: {os.getenv('OPENAI_KEY')}")
+			#print(f"Using OpenAI API base URL: {os.getenv('API_BASE')}")
 			client = OpenAI(
-                api_key=os.getenv("OPENAI_KEY"),
-                base_url="https://api.chatanywhere.tech/v1",
+                api_key="sk-fcb978b480de4ab48fa0031403decb34",
+                base_url="https://api.deepseek.com/v1",
             )
 			print(f"loading openai model =============={lm_id}")
 			if self.chat:

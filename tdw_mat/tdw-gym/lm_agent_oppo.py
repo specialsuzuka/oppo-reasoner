@@ -757,7 +757,7 @@ class lm_agent_oppo:
             return {"type": "ongoing"}
 
         self.get_new_object_list()
-        # print(self.new_object_list)
+        print(self.new_object_list)
         self.get_object_list()
 
         info = {

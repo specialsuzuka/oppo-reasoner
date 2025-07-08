@@ -81,7 +81,7 @@ class LLM:
         self.agent_name = "Alice" if agent_id == 0 else "Bob"  # 智能体名称
         self.oppo_name = "Alice" if agent_id == 1 else "Bob"  # 对手名称
         self.oppo_pronoun = "she" if agent_id == 1 else "he"  # 对手代词
-
+        self.tokens = 0
         # 调试和配置
         self.debug = sampling_parameters.debug  # 调试模式
         self.rooms = []  # 房间列表
@@ -332,7 +332,8 @@ class LLM:
         """
         self.rooms = rooms_name
         self.goal_desc = self.goal2description(goal_objects)
-
+        self.tokens = 0
+        self.communication_cost = 0
     def goal2description(self, goals):  # {predicate: count}
         """
         将目标转换为描述文本
@@ -367,7 +368,7 @@ class LLM:
             action = available_actions[i]
             if action.startswith("send a message:"):
                 action = "send a message"
-                flagsa = "COMMUNICATION"
+                flags = "COMMUNICATION"
             if action.lower() in text.lower():
                 return available_actions[i], flags
         sents = text.split("\n")  # Split by space
@@ -631,7 +632,7 @@ class LLM:
 
         return s
 
-    def get_available_plans(self, message):
+    def get_available_plans(self, message):#plans according to the state
         """
         获取可用的规划
 
@@ -855,10 +856,13 @@ class LLM:
             if self.debug:
                 print(f"output_plan_stage_1:\n{output}")
         plan, flags = self.parse_answer(available_plans_list, output)
-        #这里plan可能就是包含消息的动作
+        #这里plan就是包含消息的动作
         if flags == "COMMUNICATION":
             self.communication_cost += 1
             llm_logger.info(f"进行了一次通信，当前通信次数{self.communication_cost}")
+            self.tokens += len(plan.split(" "))
+            print(plan)
+            print(flags)
         llm_logger.info(f"{self.agent_name}:当前计划:\n{plan}")
         if self.debug:
             print(f"plan: {plan}\n")
