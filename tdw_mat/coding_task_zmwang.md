@@ -25,3 +25,5 @@
     - LLM_oppo_v2.py zhimin lead
         - reasoning-guided planning module TODO
         - reasoning-triggered collaboration module TODO
+
+补充Roco reading shaokang
