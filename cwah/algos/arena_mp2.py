@@ -21,6 +21,11 @@ class ArenaMP(object):
         self.task_goal = None
         self.record_dir = record_dir
         self.debug = debug
+        self.character_0 = 0
+        self.character_1 = 0
+        self.comm_0 = 0
+        self.comm_1 = 0
+
         print("Init Env")
         self.env = environment_fn(arena_id)
         for agent_type_fn in agent_fn:
@@ -411,7 +416,10 @@ class ArenaMP(object):
                     }
         success = False
         while True:
+            #LLM used in every step
             (obs, reward, done, infos, messages), actions, agent_info = self.step()
+            print("character_0:",self.agents[0].get_character(),"character_1:",self.agents[1].get_character())
+            print("comm_0:",self.agents[0].get_comm_num(),"comm_1:",self.agents[1].get_comm_num())
             success = infos['finished']
             # if infos['failed_exec']:
             #     raise ValueError(infos)
@@ -441,6 +449,11 @@ class ArenaMP(object):
                     pickle.dump(saved_info, open(os.path.join(self.record_dir, 'log.pik'), 'wb'))
             if done:
                 break
+        self.character_0 = self.agents[0].get_character()
+        self.character_1 = self.agents[1].get_character()
+        self.comm_0 = self.agents[0].get_comm_num()
+        self.comm_1 = self.agents[1].get_comm_num()
+        
         saved_info['finished'] = success
         if cnt_subgoal_info:
             saved_info['cnt_duplicate_subgoal'] = self.cnt_duplicate_subgoal
