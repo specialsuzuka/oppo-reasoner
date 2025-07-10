@@ -1,0 +1,33 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./tdw-gym/challenge_oppo.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_dir","results_oppo",
+                "--lm_id","deepseek-chat",
+                "--experiment_name","LMs_deepseek-chat",
+                "--run_id","run_1",
+                "--port","10004",
+                "--agents","lm_agent_oppo","lm_agent_oppo",
+                "--communication",
+                "--prompt_template_path","LLM/zmwang_prompt_v3.csv",
+                "--max_tokens","512",
+                "--data_prefix","dataset/dataset_test/",
+                "--eval_episodes","0",
+                "--screen_size","256",
+                "--no_save_img"
+            ],
+            "cwd":"/home/kking/coela/oppo-reasoner/tdw_mat"
+            
+        }
+    ]
+}

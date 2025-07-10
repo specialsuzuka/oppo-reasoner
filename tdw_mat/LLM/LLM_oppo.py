@@ -894,7 +894,7 @@ class LLM_oppo:
                 print(f"total cost: {self.total_cost}")
         else:
             normal_prompt = prompt
-            chat_prompt = [{"role": "user", "content": prompt}]
+            chat_prompt = [{"role": "user", "content": prompt}]#prompt something unused
             if self.debug:
                 print(f"base_prompt:\n{prompt}")
             # print("LLM prompt: ", prompt)

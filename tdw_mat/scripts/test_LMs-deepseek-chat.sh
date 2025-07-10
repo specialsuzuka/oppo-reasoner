@@ -1,4 +1,4 @@
-lm_id=deepseek-chat
+lm_id=deepseek-reasoner
 port=10008
 pkill -f -9 "port $port"
 

@@ -18,6 +18,7 @@ from utils import utils_goals
 
 if __name__ == '__main__':
     args = get_args()
+    print(args)
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
     # with open("test_env.json", "w") as f:
     #     json.dump(env_task_set, f, indent=4)

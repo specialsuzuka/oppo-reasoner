@@ -47,6 +47,7 @@ class lm_agent:
         self.object_list = None  # 物体列表
         self.container_held = None  # 持有的容器
         self.gt_mask = None  # 是否使用真实掩码
+        
 
         # 物体信息存储
         self.object_info = (
@@ -70,7 +71,7 @@ class lm_agent:
         self.env_api = None
         self.max_frames = max_frames
         self.output_dir = output_dir
-        self.map_size = (240, 120)
+        self.map_size = (240, 130)
         self.save_img = True
 
         # 场景边界
@@ -322,7 +323,7 @@ class lm_agent:
     def l2_distance(self, st, g):
         return ((st[0] - g[0]) ** 2 + (st[1] - g[1]) ** 2) ** 0.5
 
-    def reach_target_pos(self, target_pos, threshold=1.0):
+    def reach_target_pos(self, target_pos, threshold=1.0):# check
         x, _, z = self.obs["agent"][:3]
         gx, _, gz = target_pos
         d = self.l2_distance((x, z), (gx, gz))
@@ -346,6 +347,8 @@ class lm_agent:
         save_img=True,
     ):
         self.force_ignore = []
+        self.LLM.tokens = 0
+        self.LLM.communication_cost = 0
         self.agent_memory = AgentMemory(
             agent_id=self.agent_id,
             agent_color=agent_color,
@@ -745,7 +748,7 @@ class lm_agent:
             save_img=self.save_img,
         )
 
-        if self.obs["status"] == 0:  # ongoing
+        if self.obs["status"] == 0:  # ongoing###
             return {"type": "ongoing"}
 
         self.get_new_object_list()
@@ -819,3 +822,7 @@ class lm_agent:
             self.logger.debug(info)
         self.last_action = action
         return action
+    def get_tokens(self):
+        return self.LLM.tokens
+    def get_com_cost(self):
+        return self.LLM.communication_cost

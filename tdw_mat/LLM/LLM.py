@@ -83,7 +83,7 @@ class LLM:
         self.agent_name = "Alice" if agent_id == 0 else "Bob"  # 智能体名称
         self.oppo_name = "Alice" if agent_id == 1 else "Bob"  # 对手名称
         self.oppo_pronoun = "she" if agent_id == 1 else "he"  # 对手代词
-
+        self.tokens = 0
         # 调试和配置
         self.debug = sampling_parameters.debug  # 调试模式
         self.rooms = []  # 房间列表
@@ -114,7 +114,7 @@ class LLM:
         self.tokenizer = None  # 分词器
         self.lm_id = lm_id  # 模型ID
         self.chat = (
-            "gpt-3.5-turbo" in lm_id or "gpt-4" in lm_id or "chat" in lm_id
+            "gpt-3.5-turbo" in lm_id or "gpt-4" in lm_id or "deepseek" in lm_id
         )  # 是否为聊天模型
         self.OPENAI_KEY = None  # OpenAI API密钥
         self.total_cost = 0  # 总花费
@@ -142,8 +142,8 @@ class LLM:
         elif self.source == "deepseek":
             # DeepSeek模型初始化
             client = OpenAI(
-                api_key="sk-fcb978b480de4ab48fa0031403decb34",
-                base_url="https://api.deepseek.com/v1",
+                api_key="sk-tkQC6suw159dxQoCkSrf2pTmSbIBawo7pP15FQN7d5vfTCxO",
+                base_url="https://api.agicto.cn/v1",
             )
             if self.chat:
                 self.sampling_params = {
@@ -334,7 +334,8 @@ class LLM:
         """
         self.rooms = rooms_name
         self.goal_desc = self.goal2description(goal_objects)
-
+        self.tokens = 0
+        self.communication_cost = 0
     def goal2description(self, goals):  # {predicate: count}
         """
         将目标转换为描述文本
@@ -633,7 +634,7 @@ class LLM:
 
         return s
 
-    def get_available_plans(self, message):
+    def get_available_plans(self, message):#plans according to the state
         """
         获取可用的规划
 
@@ -778,7 +779,7 @@ class LLM:
                 chat_prompt = [{"role": "user", "content": gen_prompt}]
                 outputs, usage = self.generator(
                     chat_prompt if self.chat else gen_prompt, self.sampling_params
-                )
+                ) # usage token cost
                 self.total_cost += usage
                 message = outputs[0]
                 if len(message) > 0 and message[0] != '"':
@@ -857,14 +858,14 @@ class LLM:
             if self.debug:
                 print(f"output_plan_stage_1:\n{output}")
         plan, flags = self.parse_answer(available_plans_list, output)
-        #这里plan可能就是包含消息的动作
+        #这里plan就是包含消息的动作
         if flags == "COMMUNICATION":
             self.communication_cost += 1
-            llm_logger.info(f"{self.agent_name}:进行了一次通信，当前通信次数{self.communication_cost}")
+            self.tokens += len(plan.split(" ")) #send a message: "xxxxx" character
             # 新增：记录通信内容
             if plan.startswith("send a message:"):
                 message_content = plan[len("send a message:"):].strip()
-                llm_logger.info(f"{self.agent_name} 发送消息内容: {message_content}")
+                llm_logger.info(f"{self.agent_name} 发送消息内容: {message_content}\n当前通信次数{self.communication_cost}")
         else:
             llm_logger.info(f"{self.agent_name}:当前计划:\n{plan}")
         if self.debug:
