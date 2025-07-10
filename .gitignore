@@ -11,3 +11,4 @@ virtualhome/
 *.jpg
 tdw_mat/results/
 tdw_mat/results_oppo/
+*.sh

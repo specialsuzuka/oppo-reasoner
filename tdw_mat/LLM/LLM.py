@@ -18,6 +18,7 @@ from transformers import (
 from openai import AzureOpenAI
 from openai import OpenAIError
 from openai import OpenAI
+from datetime import datetime
 
 
 # 配置日志
@@ -39,7 +40,8 @@ if not os.path.exists("logs"):
     os.makedirs("logs")
 
 # 创建llm日志记录器
-llm_logger = setup_logger("llm_logger", "logs/llm.log")
+log_filename = f"logs/coela_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+llm_logger = setup_logger("llm_logger", log_filename)
 
 
 class LLM:
@@ -859,11 +861,13 @@ class LLM:
         #这里plan就是包含消息的动作
         if flags == "COMMUNICATION":
             self.communication_cost += 1
-            llm_logger.info(f"进行了一次通信，当前通信次数{self.communication_cost}")
             self.tokens += len(plan.split(" ")) #send a message: "xxxxx" character
-            print(plan)
-            print(flags)
-        llm_logger.info(f"{self.agent_name}:当前计划:\n{plan}")
+            # 新增：记录通信内容
+            if plan.startswith("send a message:"):
+                message_content = plan[len("send a message:"):].strip()
+                llm_logger.info(f"{self.agent_name} 发送消息内容: {message_content}\n当前通信次数{self.communication_cost}")
+        else:
+            llm_logger.info(f"{self.agent_name}:当前计划:\n{plan}")
         if self.debug:
             print(f"plan: {plan}\n")
         info.update(
