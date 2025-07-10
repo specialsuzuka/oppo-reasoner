@@ -15,7 +15,7 @@ from LLM.LLM import LLM
 
 CELL_SIZE = 0.125
 ANGLE = 15
-
+import logging
 
 class lm_agent:
     """
@@ -47,7 +47,7 @@ class lm_agent:
         self.object_list = None  # 物体列表
         self.container_held = None  # 持有的容器
         self.gt_mask = None  # 是否使用真实掩码
-        
+        self.episode = None
 
         # 物体信息存储
         self.object_info = (
@@ -137,7 +137,7 @@ class lm_agent:
         self.communication = args.communication  # 是否启用通信功能
         # print(f"是否启用通信：{self.communication}")
         self.dialogue_history = []  # 存储对话历史记录，用于记录智能体之间的通信内容
-        self.agent_names = ["Alice", "Bob"]  # 智能体名称列表，用于标识消息发送者
+        self.episode_logger = None  # 记录当前episode的日志
 
     def pos2map(self, x, z):
         i = int(round((x - self._scene_bounds["x_min"]) / CELL_SIZE))
@@ -334,6 +334,32 @@ class lm_agent:
                 return False
         return d < threshold
 
+
+
+
+        # 配置日志
+    
+    # def setup_logger(self,name, log_file, level=logging.INFO):
+    #     """设置日志记录器"""
+    #     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    #     handler = logging.FileHandler(log_file)
+    #     handler.setFormatter(formatter)
+
+    #     logger = logging.getLogger(name)
+    #     logger.setLevel(level)
+    #     logger.addHandler(handler)
+
+    #     return logger
+
+
+    # # 创建日志目录
+    # if not os.path.exists("logs"):
+    #     os.makedirs("logs")
+
+    # # 创建llm日志记录器
+    # log_filename = f"logs/coela_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    # llm_logger = setup_logger("llm_logger", log_filename)
+
     def reset(
         self,
         obs,
@@ -345,6 +371,8 @@ class lm_agent:
         agent_id=0,
         gt_mask=True,
         save_img=True,
+        episode=None,
+        episode_logger=None
     ):
         self.force_ignore = []
         self.LLM.tokens = 0
@@ -415,7 +443,8 @@ class lm_agent:
         # print(self.rooms_name)
         self.LLM.reset(self.rooms_name, self.goal_objects)
         self.save_img = save_img
-
+        self.episode = episode
+        self.episode_logger = episode_logger
     def move(self, target_pos):
         self.local_step += 1
         action, path_len = self.agent_memory.move_to_pos(target_pos)
@@ -574,8 +603,13 @@ class lm_agent:
             plan: 规划结果，可能包含通信动作
             a_info: 规划信息
         """
-        # 将对话历史作为上下文输入传递给大模型
-        # 这样大模型可以根据历史对话内容做出更合理的决策
+        # # 可视化并保存当前obs的rgb为jpg图片
+        # if "rgb" in self.obs and self.obs["rgb"] is not None:
+        #     img = Image.fromarray(self.obs["rgb"].astype(np.uint8))
+        #     os.makedirs(self.output_dir, exist_ok=True)
+        #     img.save(os.path.join(self.output_dir,f"obs_rgb_{self.num_frames}.jpg"))
+        # # 将对话历史作为上下文输入传递给大模型
+        # # 这样大模型可以根据历史对话内容做出更合理的决策
         return self.LLM.run(
             self.num_frames,
             self.current_room,
@@ -779,6 +813,9 @@ class lm_agent:
                 if lm_times > 3:
                     raise Exception(f"retrying LM_plan too many times")
                 plan, a_info = self.LLM_plan()
+                self.episode_logger.debug(
+                    f"agent_name: {self.agent_names[self.agent_id]}:LLM plan: {plan} at frame {self.num_frames}, step {self.steps}"
+                )
                 if plan is None:  # NO AVAILABLE PLANS! Explore from scratch!
                     print("No more things to do!")
                     plan = f"[wait]"
@@ -822,7 +859,9 @@ class lm_agent:
             self.logger.debug(info)
         self.last_action = action
         return action
+    
     def get_tokens(self):
         return self.LLM.tokens
+    
     def get_com_cost(self):
         return self.LLM.communication_cost

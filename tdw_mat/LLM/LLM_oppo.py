@@ -20,29 +20,6 @@ from openai import OpenAIError
 from openai import OpenAI
 from datetime import datetime
 
-# 配置日志
-def setup_logger(name, log_file, level=logging.INFO):
-    """设置日志记录器"""
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    handler = logging.FileHandler(log_file)
-    handler.setFormatter(formatter)
-
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    logger.addHandler(handler)
-
-    return logger
-
-
-# 创建日志目录
-if not os.path.exists("logs"):
-    os.makedirs("logs")
-
-# 创建oppo日志记录器
-# 创建llm日志记录器
-log_filename = f"logs/oppo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-oppo_logger = setup_logger("oppo_logger", log_filename)
-
 class LLM_oppo:
     """
     大语言模型接口类

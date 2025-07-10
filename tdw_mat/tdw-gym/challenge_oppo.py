@@ -105,6 +105,8 @@ class Challenge_oppo:
         total_0_com = 0
         total_1_com = 0
         for i, episode in enumerate(eval_episodes):
+            
+            episode_logger = init_episode_logs(self.output_dir, episode)
 
             #characters per episode
             episode_0_charaters = 0
@@ -183,6 +185,8 @@ class Challenge_oppo:
                             rooms_name=info["rooms_name"],
                             gt_mask=self.gt_mask,
                             save_img=self.save_img,
+                            episode=episode,
+                            episode_logger=episode_logger
                         )
                     else:
                         raise Exception(f"{agent.agent_type} not available")
@@ -202,7 +206,10 @@ class Challenge_oppo:
             while not done:
                 step_num += 1
                 actions = {}
+                llm_info = {}
                 # 保存图片
+
+                print("是否保存图片",self.save_img)
                 if self.save_img:
                     self.env.save_images(
                         os.path.join(self.output_dir, str(episode), "Images")
@@ -221,7 +228,6 @@ class Challenge_oppo:
                     #     communication_num_1 += 1
                     #     print("Communication action taken by agent:", agent.agent_names[agent.agent_id])
                     print(f"agent_name:{agent.agent_names[agent.agent_id]}, action: {actions[str(agent_id)]}\n")
-                    #这个地方
                 state, reward, done, info = self.env.step(actions)
                 local_reward += reward
                 local_finish = self.env.check_goal()
@@ -324,8 +330,32 @@ def init_logs(output_dir, name="simple_example"):
     )
     time_fh.setFormatter(time_formatter)
     time_logger.addHandler(time_fh)
+    
+    
 
     return logger, time_logger
+
+def init_episode_logs(output_dir, episode):
+    """
+    初始化每个episode的日志记录器
+    """
+    episode_dir = os.path.join(output_dir, str(episode))
+    os.makedirs(episode_dir, exist_ok=True)
+    
+    episode_logger = logging.getLogger(f"episode_{episode}")
+    episode_logger.setLevel(logging.DEBUG)
+    
+    fh = logging.FileHandler(os.path.join(episode_dir, f"llm_plan_{episode}.log"))
+    fh.setLevel(logging.DEBUG)
+    
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    fh.setFormatter(formatter)
+    
+    episode_logger.addHandler(fh)
+    
+    return episode_logger
 
 
 def main():
@@ -391,7 +421,8 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     args.output_dir = os.path.join(args.output_dir, args.run_id)
     os.makedirs(args.output_dir, exist_ok=True)
-    logger,time_logger = init_logs(args.output_dir)
+
+    logger,time_logger = init_logs(args.output_dir) #不包含episode的路径
 
     challenge = Challenge_oppo(
         logger,
