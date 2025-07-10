@@ -18,7 +18,7 @@ from transformers import (
 from openai import AzureOpenAI
 from openai import OpenAIError
 from openai import OpenAI
-
+from datetime import datetime
 
 # 配置日志
 def setup_logger(name, log_file, level=logging.INFO):
@@ -39,8 +39,9 @@ if not os.path.exists("logs"):
     os.makedirs("logs")
 
 # 创建oppo日志记录器
-oppo_logger = setup_logger("oppo_logger", "logs/oppo.log")
-
+# 创建llm日志记录器
+log_filename = f"logs/oppo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+oppo_logger = setup_logger("oppo_logger", log_filename)
 
 class LLM_oppo:
     """
@@ -913,11 +914,13 @@ class LLM_oppo:
             flags = "Communication"
         else:
             plan, flags = self.parse_answer(available_plans_list, chosen_action)
-            oppo_logger.info(f"模型选择的动作: {plan}\n")
+            oppo_logger.info(f"{self.agent_name}当前计划: {plan}\n")
 
         # plan, flags = self.parse_answer(available_plans_list, output)
+        
         if self.debug:
-            oppo_logger.debug(f"{self.agent_name}大模型当前的计划是plan: {plan}\n")
+            print(f"plan: {plan}\n")
+            
         info.update(
             {
                 "num_available_actions": num,
