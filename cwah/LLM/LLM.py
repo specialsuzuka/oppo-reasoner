@@ -8,6 +8,34 @@ import pandas as pd
 from openai import OpenAIError
 import backoff
 from openai import OpenAI
+
+import logging
+from datetime import datetime
+
+
+
+# 配置日志
+def setup_logger(name, log_file, level=logging.INFO):
+    """设置日志记录器"""
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    handler = logging.FileHandler(log_file)
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
+    return logger
+
+
+# 创建日志目录
+if not os.path.exists("message_logs"):
+    os.makedirs("message_logs")
+
+# 创建llm日志记录器
+log_filename = f"message_logs/coela_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+llm_logger = setup_logger("llm_logger", log_filename)
+
 class LLM:
 	def __init__(self,
 				 source,  # 'huggingface' or 'openai'
@@ -45,7 +73,8 @@ class LLM:
 		self.chat = 'gpt-3.5-turbo' in lm_id or 'gpt-4' in lm_id or 'deepseek' in lm_id or 'chatglm' in lm_id or 'chatgpt' in lm_id
 		self.OPENAI_KEY = None
 		self.total_cost = 0
-		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+		self.communication_cost = 0
 		self.characters = 0
 		self.comm_num = 0
 		if self.source == 'openai':
@@ -472,6 +501,12 @@ class LLM:
 			if self.debug:
 				print(f"base_output:\n{output}")
 		plan = self.parse_answer(available_plans_list, output)
+		if plan.startswith('[send_message]'):
+			self.communication_cost += 1
+			llm_logger.info(f"{self.agent_name}进行通信：message: {plan}\n当前通信次数{self.communication_cost}")
+   
+		else:
+			llm_logger.info(f"{self.agent_name}进行动作：action: {plan}")
 		if self.debug:
 			print(f"plan: {plan}\n")
 		info.update({"num_available_actions": num,
