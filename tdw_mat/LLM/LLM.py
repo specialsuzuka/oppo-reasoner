@@ -112,7 +112,7 @@ class LLM:
         self.tokenizer = None  # 分词器
         self.lm_id = lm_id  # 模型ID
         self.chat = (
-            "gpt-3.5-turbo" in lm_id or "gpt-4" in lm_id or "chat" in lm_id
+            "gpt-3.5-turbo" in lm_id or "gpt-4" in lm_id or "deepseek" in lm_id
         )  # 是否为聊天模型
         self.OPENAI_KEY = None  # OpenAI API密钥
         self.total_cost = 0  # 总花费
@@ -140,8 +140,8 @@ class LLM:
         elif self.source == "deepseek":
             # DeepSeek模型初始化
             client = OpenAI(
-                api_key="sk-fcb978b480de4ab48fa0031403decb34",
-                base_url="https://api.deepseek.com/v1",
+                api_key="sk-tkQC6suw159dxQoCkSrf2pTmSbIBawo7pP15FQN7d5vfTCxO",
+                base_url="https://api.agicto.cn/v1",
             )
             if self.chat:
                 self.sampling_params = {
@@ -777,7 +777,7 @@ class LLM:
                 chat_prompt = [{"role": "user", "content": gen_prompt}]
                 outputs, usage = self.generator(
                     chat_prompt if self.chat else gen_prompt, self.sampling_params
-                )
+                ) # usage token cost
                 self.total_cost += usage
                 message = outputs[0]
                 if len(message) > 0 and message[0] != '"':
@@ -860,7 +860,7 @@ class LLM:
         if flags == "COMMUNICATION":
             self.communication_cost += 1
             llm_logger.info(f"进行了一次通信，当前通信次数{self.communication_cost}")
-            self.tokens += len(plan.split(" "))
+            self.tokens += len(plan.split(" ")) #send a message: "xxxxx" character
             print(plan)
             print(flags)
         llm_logger.info(f"{self.agent_name}:当前计划:\n{plan}")

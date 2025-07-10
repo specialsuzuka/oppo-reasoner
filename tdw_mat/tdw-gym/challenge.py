@@ -97,6 +97,8 @@ class Challenge:
         # 无循环部分
         start = time.time()
         results = {}
+        total_tokens = [0,0]
+        total_com = [0,0]
         for i, episode in enumerate(eval_episodes):
             print(f"当前执行的episode为：{episode}")
             start_time = time.time()
@@ -200,11 +202,19 @@ class Challenge:
             # 记录结果
             for agent_id,agent in enumerate(agents):
                 print(f"{agent_id}:{agent.get_com_cost()}")
+                total_com[agent_id] += agent.get_com_cost()
+                total_tokens[agent_id] += agent.get_tokens()
             total_finish += local_finish[0] / local_finish[1]
             result = {
                 "finish": local_finish[0],
                 "total": local_finish[1],
                 "step_num": step_num,
+                "comunication_tokens":total_tokens[0]+total_tokens[1],
+                "agent_0_com_tokens":total_tokens[0], #character
+                "agent_1_com_tokens":total_tokens[1], #character
+                "agent_0_com_num":total_com[0], #count TODO
+                "agent_1_com_num":total_com[1],
+                "tokens_per_step":(total_tokens[0]+total_tokens[1])/step_num
                 #"communication num": communication_num
             }
 
@@ -335,6 +345,7 @@ def main():
         else:
             pass
     try:
+        print("yes")
         challenge.submit(agents, logger, args.eval_episodes)
         # 提交进入chanllenge遍历执行
     finally:

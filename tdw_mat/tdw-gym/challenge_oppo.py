@@ -99,8 +99,18 @@ class Challenge_oppo:
         # 无循环部分
         start = time.time()
         results = {}
+        #all episode charaters
+        total_0_charaters = 0
+        total_1_charaters = 0
+        total_0_com = 0
+        total_1_com = 0
         for i, episode in enumerate(eval_episodes):
-            
+
+            #characters per episode
+            episode_0_charaters = 0
+            episode_1_charaters = 0
+            episode_0_com = 0
+            episode_1_com = 0
             print(f"当前执行的episode为：{episode}")
             start_time = time.time()
 
@@ -187,8 +197,7 @@ class Challenge_oppo:
             local_finish = self.env.check_goal()
             done = False
             step_num = 0
-            communication_num_0 = 0
-            communication_num_1 = 0
+            
             local_reward = 0.0
             while not done:
                 step_num += 1
@@ -204,17 +213,16 @@ class Challenge_oppo:
                     act_end = time.time()
                     act_num += 1
                     act_total_time += (act_end - act_start)
-                    print(actions[str(agent_id)]['type'])
-                    if actions[str(agent_id)]['type'] == 6 and agent_id ==0:
-                        communication_num_0 += 1
-                        print("Communication action taken by agent:", agent.agent_names[agent.agent_id])
-                    if actions[str(agent_id)]['type'] == 6 and agent_id ==1:
-                        communication_num_1 += 1
-                        print("Communication action taken by agent:", agent.agent_names[agent.agent_id])
+                    print(actions[str(agent_id)]['type'],"characters",agent.get_tokens(),"com_num:",agent.get_com_cost())
+                    # if actions[str(agent_id)]['type'] == 6 and agent_id ==0:
+                    #     communication_num_0 += 1
+                    #     print("Communication action taken by agent:", agent.agent_names[agent.agent_id])
+                    # if actions[str(agent_id)]['type'] == 6 and agent_id ==1:
+                    #     communication_num_1 += 1
+                    #     print("Communication action taken by agent:", agent.agent_names[agent.agent_id])
                     print(f"agent_name:{agent.agent_names[agent.agent_id]}, action: {actions[str(agent_id)]}\n")
                     #这个地方
                 state, reward, done, info = self.env.step(actions)
-                    
                 local_reward += reward
                 local_finish = self.env.check_goal()
                 self.logger.info(
@@ -222,6 +230,17 @@ class Challenge_oppo:
                 )
                 if done:
                     break
+            #episode count
+            episode_0_charaters = agents[0].get_tokens()
+            episode_1_charaters = agents[1].get_tokens()
+            episode_0_com = agent[0].get_com_cost()
+            episode_1_com = agent[1].get_com_cost()
+
+            #total count
+            total_0_charaters += episode_0_charaters
+            total_1_charaters += episode_1_charaters
+            total_0_com += episode_0_com
+            total_1_com += episode_1_com
 
             episode_total_time = time.time() - episode_start_time
             self.time_logger.info(f"Episode {episode} total time: {episode_total_time:.4f} secs")
@@ -234,8 +253,10 @@ class Challenge_oppo:
                 "total": local_finish[1],
                 "step_num": step_num,
                 "frame": self.env.num_frames,
-                "communication num_0": communication_num_0,
-                "communication num_1": communication_num_1,
+                "communication num_0": episode_0_com,
+                "communication num_1": episode_1_com,
+                "charater_0":episode_0_charaters,
+                "charater_1":episode_1_charaters,
                 "episode_total_time": episode_total_time,
                 "act_total_time": act_total_time,
                 "act_num": act_num
@@ -251,6 +272,21 @@ class Challenge_oppo:
         results = {"episode_results": results, "avg_finish": avg_finish}
         with open(os.path.join(self.output_dir, "eval_result.json"), "w") as f:
             json.dump(results, f, indent=4)
+
+        #whole results
+        with open("./count_results/counts.txt","a+") as f:
+            f.write(f"time:{time.time()}")
+            f.write(f"total_characters:{total_0_charaters+total_1_charaters}")
+            f.write(f"total_0_characters:{total_0_charaters}")
+            f.write(f"total_1_characters:{total_1_charaters}")
+            f.write(f"total_0_com:{total_0_com}")
+            f.write(f"total_1_com:{total_1_com}")
+            f.write(f"com_per_episode0:{total_0_com/eval_episodes}")
+            f.write(f"com_per_episode1:{total_1_com/eval_episodes}")
+            f.write(f"character_per_episode0:{total_0_charaters/eval_episodes}")
+            f.write(f"charactor_per_episode1:{total_1_charaters/eval_episodes}")
+
+
         self.logger.info(f"eval done, avg transport rate {avg_finish}")
         self.logger.info("time: {}".format(time.time() - start))
         return avg_finish

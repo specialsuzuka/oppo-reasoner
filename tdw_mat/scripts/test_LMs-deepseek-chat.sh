@@ -1,4 +1,4 @@
-lm_id=deepseek-chat
+lm_id=deepseek-reasoner
 port=10008
 pkill -f -9 "port $port"
 
@@ -13,7 +13,7 @@ python3 tdw-gym/challenge_oppo.py \
 --prompt_template_path LLM/prompt_com.csv \
 --max_tokens 512 \
 --data_prefix dataset/dataset_test/ \
---eval_episodes 0 1 2 3 4 \
+--eval_episodes 0 \
 --screen_size 256 \
 --no_save_img
 

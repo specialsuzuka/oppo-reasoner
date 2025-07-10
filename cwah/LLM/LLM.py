@@ -46,14 +46,15 @@ class LLM:
 		self.OPENAI_KEY = None
 		self.total_cost = 0
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+		self.characters = 0
+		self.comm_num = 0
 		if self.source == 'openai':
 			# openai.api_key = os.getenv("OPENAI_KEY")
 			#print(f"Using OpenAI API key: {os.getenv('OPENAI_KEY')}")
 			#print(f"Using OpenAI API base URL: {os.getenv('API_BASE')}")
 			client = OpenAI(
-                api_key="sk-fcb978b480de4ab48fa0031403decb34",
-                base_url="https://api.deepseek.com/v1",
+                api_key="sk-tkQC6suw159dxQoCkSrf2pTmSbIBawo7pP15FQN7d5vfTCxO",
+                base_url="https://api.agicto.cn/v1"
             )
 			print(f"loading openai model =============={lm_id}")
 			if self.chat:

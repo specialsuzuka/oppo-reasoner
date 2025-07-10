@@ -187,6 +187,8 @@ class LLM_agent:
 		:param goal:{predicate:[count, True, 2]}
 		:return:
 		"""
+
+		#maintain the dialogue history
 		if self.communication:
 			for i in range(len(observation["messages"])):
 				if observation["messages"][i] is not None:
@@ -269,6 +271,7 @@ class LLM_agent:
 					print("No more things to do!")
 					plan = f"[wait]"
 				self.plan = plan
+				#maintain history
 				self.action_history.append('[send_message]' if plan.startswith('[send_message]') else plan)
 				a_info.update({"steps": self.steps})
 				info.update({"LLM": a_info})
@@ -282,6 +285,8 @@ class LLM_agent:
 			elif self.plan.startswith('[goput]'):
 				action = self.goput()
 			elif self.plan.startswith('[send_message]'):
+				self.LLM.characters += len(plan.split(" "))
+				self.LLM.comm_num += 1
 				action = self.plan[:]
 				self.plan = None
 			elif self.plan.startswith('[wait]'):
@@ -329,6 +334,10 @@ class LLM_agent:
 		self.goal_location = list(goal.keys())[0].split('_')[-1]
 		self.goal_location_id = int(self.goal_location.split(' ')[-1][1:-1])
 		self.id_inside_room = {self.goal_location_id: self.rooms_name[:], self.opponent_agent_id: None}
+
+		self.LLM.characters = 0
+		self.LLM.comm_num = 0
+
 		self.unchecked_containers = {
 			"livingroom": None,
 			"kitchen": None,
@@ -350,3 +359,7 @@ class LLM_agent:
 		self.action_history = [f"[goexplore] <{self.current_room['class_name']}> ({self.current_room['id']})"]
 		self.dialogue_history = []
 		self.LLM.reset(self.rooms_name, self.roomname2id, self.goal_location, self.unsatisfied)
+	def get_character(self):
+		return self.LLM.characters
+	def get_comm_num(self):
+		return self.LLM.comm_num

@@ -71,7 +71,7 @@ class lm_agent:
         self.env_api = None
         self.max_frames = max_frames
         self.output_dir = output_dir
-        self.map_size = (240, 120)
+        self.map_size = (240, 130)
         self.save_img = True
 
         # 场景边界
@@ -347,6 +347,8 @@ class lm_agent:
         save_img=True,
     ):
         self.force_ignore = []
+        self.LLM.tokens = 0
+        self.LLM.communication_cost = 0
         self.agent_memory = AgentMemory(
             agent_id=self.agent_id,
             agent_color=agent_color,
@@ -746,7 +748,7 @@ class lm_agent:
             save_img=self.save_img,
         )
 
-        if self.obs["status"] == 0:  # ongoing
+        if self.obs["status"] == 0:  # ongoing###
             return {"type": "ongoing"}
 
         self.get_new_object_list()
