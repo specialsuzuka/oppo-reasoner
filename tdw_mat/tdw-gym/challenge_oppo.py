@@ -231,17 +231,22 @@ class Challenge_oppo:
                 state, reward, done, info = self.env.step(actions)
                 local_reward += reward
                 local_finish = self.env.check_goal()
+                
+
                 self.logger.info(
                     f"Executing step {step_num} for episode: {episode}, actions: {actions}, finish: {local_finish}, frame: {self.env.num_frames}"
                 )
                 if done:
                     break
+
+
+            
             #episode count
             episode_0_charaters = agents[0].get_tokens()
             episode_1_charaters = agents[1].get_tokens()
-            episode_0_com = agent[0].get_com_cost()
-            episode_1_com = agent[1].get_com_cost()
-
+            episode_0_com = agents[0].get_com_cost()
+            episode_1_com = agents[1].get_com_cost()
+            
             #total count
             total_0_charaters += episode_0_charaters
             total_1_charaters += episode_1_charaters
