@@ -25,5 +25,15 @@
     - LLM_oppo_v2.py zhimin lead
         - reasoning-guided planning module TODO
         - reasoning-triggered collaboration module TODO
-
+ 
 补充Roco reading shaokang
+- frame 模拟器的步进 top-down img 单位frame
+- step low_action: move(0,5m) take 5 frames turn left turn right img 第一人称的
+- planning_step : LLM output gotoroom() 重点 决策步
+
+go to room(living room<4004>) -> lm_agent.py go to room -> move(target pos) return action -> env
+
+capo : discussion 3 steps
+1. go to livingroom
+2. 模糊
+3. 模糊
