@@ -64,6 +64,7 @@ class LLM:
         self.oppo_name = "Alice" if agent_id == 1 else "Bob"  # 对手名称
         self.oppo_pronoun = "she" if agent_id == 1 else "he"  # 对手代词
         self.tokens = 0
+        self.api = 0
         # 调试和配置
         self.debug = sampling_parameters.debug  # 调试模式
         self.rooms = []  # 房间列表
@@ -171,6 +172,8 @@ class LLM:
                         response = client.chat.completions.create(
                             model=self.lm_id, messages=prompt, **sampling_params
                         )
+                        self.api += 1
+                        usage = response.usage.completion_tokens## generated response tokens
                         if self.debug:
                             with open(f"LLM/chat_raw.json", "a") as f:
                                 f.write(
@@ -316,6 +319,8 @@ class LLM:
         self.goal_desc = self.goal2description(goal_objects)
         self.tokens = 0
         self.communication_cost = 0
+        self.api = 0
+        self.total_cost = 0
     def goal2description(self, goals):  # {predicate: count}
         """
         将目标转换为描述文本
@@ -776,7 +781,7 @@ class LLM:
                     print(f"prompt_comm:\n{gen_prompt}")
                     print(f"output_comm:\n{message}")
 
-        available_plans, num, available_plans_list = self.get_available_plans(message) #因为要传入消息
+        available_plans, num, available_plans_list = self.get_available_plans(message) #因为要传入消息,only for message in the available plans
         if num == 0 or (message is not None and num == 1):
             print("Warning! No available plans!")
             plan = None
@@ -837,6 +842,7 @@ class LLM:
                 chat_prompt if self.chat else normal_prompt, self.sampling_params
             )
             output = outputs[0]
+            self.total_cost += usage
             # info['usage_step_1'] = usage
             if self.debug:
                 print(f"output_plan_stage_1:\n{output}")

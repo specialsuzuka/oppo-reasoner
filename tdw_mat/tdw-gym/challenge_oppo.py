@@ -104,6 +104,10 @@ class Challenge_oppo:
         total_1_charaters = 0
         total_0_com = 0
         total_1_com = 0
+        total_0_api = 0
+        total_1_api = 0
+        total_0_usage = 0
+        total_1_usage = 1
         for i, episode in enumerate(eval_episodes):
             
             episode_logger = init_episode_logs(self.output_dir, episode)
@@ -113,6 +117,10 @@ class Challenge_oppo:
             episode_1_charaters = 0
             episode_0_com = 0
             episode_1_com = 0
+            episode_0_api = 0
+            episode_1_api = 0
+            episode_0_usage = 0
+            episode_1_usage = 0
             print(f"当前执行的episode为：{episode}")
             start_time = time.time()
 
@@ -198,25 +206,26 @@ class Challenge_oppo:
             episode_start_time = time.time()  # 记录本episode总计时
             act_total_time = 0.0  # 记录act方法总时间
             act_num = 0
+            ## check1 tickle
             local_finish = self.env.check_goal()
             done = False
             step_num = 0
             
             local_reward = 0.0
             while not done:
+                #step anotate
                 step_num += 1
                 actions = {}
                 llm_info = {}
                 # 保存图片
-
-                print("是否保存图片",self.save_img)
+                #print("是否保存图片",self.save_img)
                 if self.save_img:
                     self.env.save_images(
                         os.path.join(self.output_dir, str(episode), "Images")
                     )
                 for agent_id, agent in enumerate(agents):
                     act_start = time.time()
-                    actions[str(agent_id)] = agent.act(state[str(agent_id)])
+                    actions[str(agent_id)] = agent.act(state[str(agent_id)])##check 2 almost
                     act_end = time.time()
                     act_num += 1
                     act_total_time += (act_end - act_start)
@@ -228,8 +237,8 @@ class Challenge_oppo:
                     #     communication_num_1 += 1
                     #     print("Communication action taken by agent:", agent.agent_names[agent.agent_id])
                     print(f"agent_name:{agent.agent_names[agent.agent_id]}, action: {actions[str(agent_id)]}\n")
-                state, reward, done, info = self.env.step(actions)
-                local_reward += reward
+                state, reward, done, info = self.env.step(actions)##check 3
+                local_reward += reward##seem no use
                 local_finish = self.env.check_goal()
                 
 
@@ -246,12 +255,20 @@ class Challenge_oppo:
             episode_1_charaters = agents[1].get_tokens()
             episode_0_com = agents[0].get_com_cost()
             episode_1_com = agents[1].get_com_cost()
+            episode_0_api = agents[0].get_api_num()
+            episode_1_api = agents[1].get_api_num()
+            episode_0_usage = agents[0].get_total_cost()
+            episode_1_usage = agents[1].get_total_cost()
             
             #total count
             total_0_charaters += episode_0_charaters
             total_1_charaters += episode_1_charaters
             total_0_com += episode_0_com
             total_1_com += episode_1_com
+            total_0_api += episode_0_api
+            total_1_api += episode_1_api
+            total_0_usage += episode_0_usage
+            total_1_usage += episode_1_usage
 
             episode_total_time = time.time() - episode_start_time
             self.time_logger.info(f"Episode {episode} total time: {episode_total_time:.4f} secs")
@@ -270,7 +287,11 @@ class Challenge_oppo:
                 "charater_1":episode_1_charaters,
                 "episode_total_time": episode_total_time,
                 "act_total_time": act_total_time,
-                "act_num": act_num
+                "act_num": act_num,
+                "api_0":episode_0_api,
+                "api_1":episode_1_api,
+                "usage_0":episode_0_usage,
+                "usage_1":episode_1_usage
             }
             with open(
                 os.path.join(self.output_dir, str(episode), "result_episode.json"), "w"
@@ -294,6 +315,10 @@ class Challenge_oppo:
             f.write(f"total_1_com:{total_1_com}")
             f.write(f"com_per_episode0:{total_0_com/eval_episodes}")
             f.write(f"com_per_episode1:{total_1_com/eval_episodes}")
+            f.write(f"total_api_0{total_0_api}")
+            f.write(f"total_api_1{total_1_api}")
+            f.write(f"total_usage_0{total_0_usage}")
+            f.write(f"total_usage_1{total_1_usage}")
             f.write(f"character_per_episode0:{total_0_charaters/eval_episodes}")
             f.write(f"charactor_per_episode1:{total_1_charaters/eval_episodes}")
 
@@ -444,6 +469,7 @@ def main():
         save_img=not args.no_save_img,
     )
     agents = []
+    #create agents
     for i, agent in enumerate(args.agents):
         if agent == "h_agent":
             agents.append(H_agent(i, logger, args.max_frames, args.output_dir))
