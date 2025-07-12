@@ -708,7 +708,7 @@ class TDW(Env):
 
         self.num_frames += num_frames
         self.action_list.append(actions)
-        goal_put, goal_total, self.success = self.check_goal()
+        goal_put, goal_total, self.success = self.check_goal()#whole success
         reward = 0
         for replicant_id in self.controller.replicants:
             action = actions[str(replicant_id)]
@@ -737,7 +737,7 @@ class TDW(Env):
         # add messages to obs
         if self.number_of_agents == 2:
             for replicant_id in self.controller.replicants:
-                obs[str(replicant_id)]['messages'] = copy.deepcopy(self.messages)
+                obs[str(replicant_id)]['messages'] = copy.deepcopy(self.messages)#
             self.messages = [None for _ in range(self.number_of_agents)]
 
         for replicant_id in self.controller.replicants:
