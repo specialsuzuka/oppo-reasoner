@@ -15,9 +15,10 @@ sys.path.append(base_path)
 from h_agent import H_agent
 from lm_agent_oppo import lm_agent_oppo
 from lm_agent import lm_agent
+from lm_agent_capo import lm_agent_capo
 
 # 注册测试环境
-gym.envs.registration.register(id="transport_challenge_MA", entry_point="tdw_gym:TDW")
+gym.envs.registration.register(id="transport_challenge_MA", entry_point="tdw_gym_capo:TDW")
 
 
 class Challenge_oppo:
@@ -170,6 +171,18 @@ class Challenge_oppo:
                             gt_mask=self.gt_mask,
                             save_img=self.save_img,
                         )
+                    elif agent.agent_type =="lm_agent_capo":
+                        agent.reset(
+                            obs=state[str(id)],
+                            goal_objects=info["goal_description"],
+                            output_dir=os.path.join(self.output_dir, str(episode)),
+                            env_api=curr_api,
+                            agent_color=info["agent_colors"][id],
+                            agent_id=id,
+                            rooms_name=info["rooms_name"],
+                            gt_mask=self.gt_mask,
+                            save_img=self.save_img,
+                        )
                     elif agent.agent_type == "lm_agent_oppo":
                         agent.reset(
                             obs=state[str(id)],
@@ -225,7 +238,7 @@ class Challenge_oppo:
                     )
                 for agent_id, agent in enumerate(agents):
                     act_start = time.time()
-                    actions[str(agent_id)] = agent.act(state[str(agent_id)])##check 2 almost
+                    actions[str(agent_id)] = agent.act_capo(state[str(agent_id)])##check 2 almost
                     act_end = time.time()
                     act_num += 1
                     act_total_time += (act_end - act_start)
@@ -306,6 +319,7 @@ class Challenge_oppo:
             json.dump(results, f, indent=4)
 
         #whole results
+        os.makedirs("./count_results",exist_ok=True)
         with open("./count_results/counts.txt","a+") as f:
             f.write(f"time:{time.time()}")
             f.write(f"total_characters:{total_0_charaters+total_1_charaters}")
@@ -313,14 +327,14 @@ class Challenge_oppo:
             f.write(f"total_1_characters:{total_1_charaters}")
             f.write(f"total_0_com:{total_0_com}")
             f.write(f"total_1_com:{total_1_com}")
-            f.write(f"com_per_episode0:{total_0_com/eval_episodes}")
-            f.write(f"com_per_episode1:{total_1_com/eval_episodes}")
+            f.write(f"com_per_episode0:{total_0_com/len(eval_episodes)}")
+            f.write(f"com_per_episode1:{total_1_com/len(eval_episodes)}")
             f.write(f"total_api_0{total_0_api}")
             f.write(f"total_api_1{total_1_api}")
             f.write(f"total_usage_0{total_0_usage}")
             f.write(f"total_usage_1{total_1_usage}")
-            f.write(f"character_per_episode0:{total_0_charaters/eval_episodes}")
-            f.write(f"charactor_per_episode1:{total_1_charaters/eval_episodes}")
+            f.write(f"character_per_episode0:{total_0_charaters/len(eval_episodes)}")
+            f.write(f"charactor_per_episode1:{total_1_charaters/len(eval_episodes)}")
 
 
         self.logger.info(f"eval done, avg transport rate {avg_finish}")
@@ -414,7 +428,7 @@ def main():
     # LLM parameters
     parser.add_argument(
         "--source",
-        default="deepseek",
+        default="openai",
         choices=["hf", "openai", "deepseek"],
         help="openai API or load huggingface models",
     )
@@ -479,6 +493,8 @@ def main():
             )
         elif agent == "lm_agent":
             agents.append(lm_agent(i, logger, args.max_frames, args, args.output_dir))
+        elif agent == "lm_agent_capo":
+            agents.append(lm_agent_capo(i, logger, args.max_frames, args, args.output_dir))
         else:
             pass
     try:
