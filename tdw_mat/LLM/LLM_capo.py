@@ -63,8 +63,13 @@ class LLM_capo:
         self.agent_name = "Alice" if agent_id == 0 else "Bob"  # 智能体名称
         self.oppo_name = "Alice" if agent_id == 1 else "Bob"  # 对手名称
         self.oppo_pronoun = "she" if agent_id == 1 else "he"  # 对手代词
-        self.tokens = 0
-        self.api = 0
+        
+        ##counting
+        self.tokens = 0 #generated-token-counting
+        self.api = 0 #api-usage
+        
+
+
         # 调试和配置
         self.debug = sampling_parameters.debug  # 调试模式
         self.rooms = []  # 房间列表
@@ -118,8 +123,7 @@ class LLM_capo:
             "gpt-3.5-turbo" in lm_id or "gpt-4" in lm_id or "deepseek" in lm_id or source =="openai"
         )  # 是否为聊天模型
         self.OPENAI_KEY = None  # OpenAI API密钥
-        self.total_cost = 0  # 总花费
-        self.communication_cost = 0  # 通信花费
+        
         # 根据不同来源初始化模型
         if self.source == "openai":
             # OpenAI模型初始化
@@ -196,7 +200,8 @@ class LLM_capo:
                             model=self.lm_id, messages=prompt, **sampling_params
                         )
                         self.api += 1
-                        usage = response.usage.completion_tokens## generated response tokens
+                        print(self.api)
+                        self.tokens += response.usage.completion_tokens## generated response tokens
                         if self.debug:
                             with open(f"LLM/chat_raw.json", "a") as f:
                                 f.write(
@@ -341,9 +346,8 @@ class LLM_capo:
         self.rooms = rooms_name
         self.goal_desc = self.goal2description(goal_objects)
         self.tokens = 0
-        self.communication_cost = 0
         self.api = 0
-        self.total_cost = 0
+        
     def goal2description(self, goals):  # {predicate: count}
         """
         将目标转换为描述文本

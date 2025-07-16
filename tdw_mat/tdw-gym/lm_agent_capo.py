@@ -39,6 +39,9 @@ class lm_agent_capo:
             args: 配置参数
             output_dir: 输出目录
         """
+        #counting
+        self.characters = 0 # model-generated-characters
+        self.comm_num = 0 # agent-communication-times
         # 环境状态相关变量
         self.with_oppo = None  # 对手持有的物体
         self.oppo_pos = None  # 对手位置
@@ -388,8 +391,8 @@ class lm_agent_capo:
         episode_logger=None
     ):
         self.force_ignore = []
-        self.LLM.tokens = 0
-        self.LLM.communication_cost = 0
+        self.characters = 0 
+        self.comm_num = 0 
         self.agent_memory = AgentMemory(
             agent_id=self.agent_id,
             agent_color=agent_color,
@@ -640,7 +643,7 @@ class lm_agent_capo:
             self.oppo_last_room,
         )
     def LLM_send_progress(self):
-        return self.LLM.progress_sending(
+        output = self.LLM.progress_sending(
             self.num_frames,
             self.current_room,
             self.rooms_explored,
@@ -652,11 +655,16 @@ class lm_agent_capo:
             self.oppo_last_room
         )
 
+        return output
+
     def LLM_meta_plan_init(self):
-        return self.LLM.meta_plan_init()
+        output = self.LLM.meta_plan_init()
+        self.characters += len(output.split(" "))
+        self.comm_num += 1
+        return output
     
     def LLM_disscuss_refine(self,refine,oppo_progress):## oppoprogress appear after the metaplan send to teammate and the teammate send oppoprogress to the host
-        return self.LLM.disscuss_refine(
+        output = self.LLM.disscuss_refine(
             self.host,
             refine,
             self.dialogue_history,
@@ -672,10 +680,13 @@ class lm_agent_capo:
             opponent_grabbed_objects=self.obs["oppo_held_objects"],
             opponent_last_room = self.oppo_last_room
         )
+        self.characters += len(output.split(" "))
+        self.comm_num += 1
+        return output
     
     
     def LLM_parsing(self):
-        return self.LLM.parsing(
+        output = self.LLM.parsing(
             self.meta_plan,
             self.num_frames,
             self.current_room,
@@ -690,6 +701,8 @@ class lm_agent_capo:
             self.oppo_last_room
 
         )
+        self.characters += len(output.split(" "))
+        return output
     
     def act_capo(self, obs):
         """
@@ -1242,10 +1255,5 @@ class lm_agent_capo:
     
     def get_tokens(self):
         return self.LLM.tokens
-    
-    def get_com_cost(self):
-        return self.LLM.communication_cost
     def get_api_num(self):
         return self.LLM.api
-    def get_total_cost(self):## for generated content counting
-        return self.LLM.total_cost
