@@ -901,7 +901,7 @@ class lm_agent_capo:
         ###self.goal_objects:{"name":num, ....}
         ###self.object_infos: {id: {id: xx, type: 0/1/2, name: sss, position: x,y,z}}
 
-
+        ##TODO:add logger
         # exchange progress before disscussion
         if self.obs["disscussion"] == 1 and self.obs["turns"] == 0 :
                 progress = self.LLM_send_progress()
@@ -917,6 +917,9 @@ class lm_agent_capo:
         if self.obs["disscussion"] == 1 and self.obs["turns"] == 1:#TODO:satisfied in the env and the round limitation
             if self.host:
                 meta_plan = self.LLM_disscuss_refine(1,self.oppo_progress)#1 denote refine ,0 denote disscuss
+                self.episode_logger.debug(
+                    f"agent_name: {self.agent_names[self.agent_id]}:LLM meta_plan: {meta_plan} at frame {self.num_frames}, step {self.steps}"
+                )
                 self.meta_plan = meta_plan
                 action = {
                         "type": 6,  # 动作类型6表示发送消息
@@ -931,6 +934,9 @@ class lm_agent_capo:
         if self.obs["disscussion"] == 1 and self.obs["turns"] == 2:
             if self.host:
                 message = self.LLM_disscuss_refine(0,self.oppo_progress)
+                self.episode_logger.debug(
+                    f"agent_name: {self.agent_names[self.agent_id]}:LLM host_message: {message} at frame {self.num_frames}, step {self.steps}"
+                )
                 action = {
                         "type": 6,  # 动作类型6表示发送消息
                         "message":message,
@@ -944,6 +950,9 @@ class lm_agent_capo:
         if self.obs["disscussion"] == 1 and self.obs["turns"] == 3:#satisfied or not in the env
             if not self.host:
                 message = self.LLM_disscuss_refine(0,self.oppo_progress)
+                self.episode_logger.debug(
+                    f"agent_name: {self.agent_names[self.agent_id]}:LLM teammate_message: {message} at frame {self.num_frames}, step {self.steps}"
+                )
                 action = {
                         "type": 6,  # 动作类型6表示发送消息
                         "message":message,
@@ -978,7 +987,7 @@ class lm_agent_capo:
                 not in ["rgb", "depth", "seg_mask", "camera_matrix", "visible_objects"]
             },
         }
-        #TODO:disscussion and normal acting
+       
 
 
         
@@ -987,12 +996,15 @@ class lm_agent_capo:
             if self.sub_plan is None:
                 self.target_pos = None
                 sub_plan = self.LLM_parsing()
+                self.episode_logger.debug(
+                    f"agent_name: {self.agent_names[self.agent_id]}:LLM sub_plan: {sub_plan} at frame {self.num_frames}, step {self.steps}"
+                )
                 self.sub_plan = sub_plan
                 self.action_history.append(
                             f"{self.sub_plan} at step {self.num_frames}"
                     )
             
-            if self.sub_plan.startswith("go to"):#TODO:rewrite the low level action
+            if self.sub_plan.startswith("go to"):
                 action = self.gotoroom()
             elif self.sub_plan.startswith("explore"):
                 self.explore_count = 0
@@ -1206,9 +1218,9 @@ class lm_agent_capo:
                 if lm_times > 3:
                     raise Exception(f"retrying LM_plan too many times")
                 plan, a_info = self.LLM_plan()
-                # self.episode_logger.debug(
-                #     f"agent_name: {self.agent_names[self.agent_id]}:LLM plan: {plan} at frame {self.num_frames}, step {self.steps}"
-                # )
+                self.episode_logger.debug(##move the logger
+                    f"agent_name: {self.agent_names[self.agent_id]}:LLM plan: {plan} at frame {self.num_frames}, step {self.steps}"
+                )
                 if plan is None:  # NO AVAILABLE PLANS! Explore from scratch!
                     print("No more things to do!")
                     plan = f"[wait]"
