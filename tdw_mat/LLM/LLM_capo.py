@@ -797,7 +797,6 @@ class LLM_capo:
         ## init the meta plan
         prompt = self.meta_plan_prompt
         prompt = prompt.replace("$GOAL$",self.goal_desc)
-       
         chat_prompt = [{"role": "user", "content": prompt}]
         output,usage = self.generator(chat_prompt,self.sampling_params)
         meta_plan = output[0]

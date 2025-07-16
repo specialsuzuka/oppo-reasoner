@@ -183,6 +183,7 @@ class Challenge_oppo:
                             rooms_name=info["rooms_name"],
                             gt_mask=self.gt_mask,
                             save_img=self.save_img,
+                            episode_logger = episode_logger
                         )
                     elif agent.agent_type == "lm_agent_oppo":
                         agent.reset(
@@ -380,7 +381,7 @@ def init_logs(output_dir, name="simple_example"):
 
     return logger, time_logger
 
-def init_episode_logs(output_dir, episode):
+def init_episode_logs(output_dir, episode):##logger
     """
     初始化每个episode的日志记录器
     """
