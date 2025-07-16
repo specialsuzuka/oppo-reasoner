@@ -12,12 +12,13 @@ from PIL import Image
 from agent_memory import AgentMemory
 
 from LLM.LLM import LLM
+from LLM.LLM_capo import LLM_capo
 
 CELL_SIZE = 0.125
 ANGLE = 15
 import logging
 
-class lm_agent:
+class lm_agent_capo:
     """
     大模型驱动的智能体类
     主要功能：
@@ -38,6 +39,9 @@ class lm_agent:
             args: 配置参数
             output_dir: 输出目录
         """
+        #counting
+        self.characters = 0 # model-generated-characters
+        self.comm_num = 0 # agent-communication-times
         # 环境状态相关变量
         self.with_oppo = None  # 对手持有的物体
         self.oppo_pos = None  # 对手位置
@@ -48,7 +52,8 @@ class lm_agent:
         self.container_held = None  # 持有的容器
         self.gt_mask = None  # 是否使用真实掩码
         self.episode = None
-
+        
+        self.meta_plan = None
         # 物体信息存储
         self.object_info = (
             {}
@@ -63,9 +68,11 @@ class lm_agent:
 
         # 智能体基本信息
         self.agent_id = agent_id
-        self.agent_type = "lm_agent"
+        self.host = 1-agent_id
+        self.agent_type = "lm_agent_capo"
         self.agent_names = ["Alice", "Bob"]
         self.opponent_agent_id = 1 - agent_id
+        self.oppo_progress = ""
 
         # 环境配置
         self.env_api = None
@@ -107,7 +114,16 @@ class lm_agent:
         self.communication = args.communication
         self.cot = args.cot
         self.args = args
-        self.LLM = LLM(
+        # self.LLM = LLM(
+        #     self.source,
+        #     self.lm_id,
+        #     self.prompt_template_path,
+        #     self.communication,
+        #     self.cot,
+        #     self.args,
+        #     self.agent_id,
+        # )
+        self.LLM = LLM_capo(
             self.source,
             self.lm_id,
             self.prompt_template_path,
@@ -132,7 +148,7 @@ class lm_agent:
         self.rotated = None  # 旋转状态
         self.navigation_threshold = 5  # 导航阈值
         self.detection_threshold = 5  # 检测阈值
-
+        self.sub_plan = None
         # 通信相关配置
         self.communication = args.communication  # 是否启用通信功能
         # print(f"是否启用通信：{self.communication}")
@@ -327,7 +343,7 @@ class lm_agent:
         x, _, z = self.obs["agent"][:3]
         gx, _, gz = target_pos
         d = self.l2_distance((x, z), (gx, gz))
-        if self.plan.startswith("transport"):
+        if self.sub_plan.startswith("transport"):
             if self.env_api["belongs_to_which_room"](
                 np.array([x, 0, z])
             ) != self.env_api["belongs_to_which_room"](np.array([gx, 0, gz])):
@@ -375,8 +391,8 @@ class lm_agent:
         episode_logger=None
     ):
         self.force_ignore = []
-        self.LLM.tokens = 0
-        self.LLM.communication_cost = 0
+        self.characters = 0 
+        self.comm_num = 0 
         self.agent_memory = AgentMemory(
             agent_id=self.agent_id,
             agent_color=agent_color,
@@ -404,6 +420,7 @@ class lm_agent:
         self.last_action = None
         self.id_map = np.zeros(self.map_size, np.int32)
         self.object_map = np.zeros(self.map_size, np.int32)
+        self.oppo_progress = ""
 
         self.object_info = {}#personlized attribution
         self.object_list = {0: [], 1: [], 2: []}
@@ -427,6 +444,7 @@ class lm_agent:
         self.rooms_explored = {}
 
         self.plan = None
+        self.sub_plan = None
         self.action_history = [f"go to {self.current_room} at initial step"]
         self.dialogue_history = []
         self.gt_mask = gt_mask
@@ -452,14 +470,14 @@ class lm_agent:
         return action
 
     def gotoroom(self):
-        target_room = " ".join(self.plan.split(" ")[2:4])
+        target_room = " ".join(self.sub_plan.split(" ")[2:4])
         if target_room[-1] == ",":
             target_room = target_room[:-1]
         if self.debug:
             print(target_room)
         target_pos = self.env_api["center_of_room"](target_room)
         if self.current_room == target_room and self.room_distance == 0:
-            self.plan = None
+            self.sub_plan = None
             return None
         # add an interruption if anything new happens
         if (
@@ -469,15 +487,15 @@ class lm_agent:
             > 0
         ):
             self.action_history[-1] = self.action_history[-1].replace(
-                self.plan, f"go to {self.current_room}"
+                self.sub_plan, f"go to {self.current_room}"
             )
             self.new_object_list = {0: [], 1: [], 2: []}
-            self.plan = None
+            self.sub_plan = None
             return None
         return self.move(target_pos)
 
     def goexplore(self):
-        target_room = " ".join(self.plan.split(" ")[-2:])
+        target_room = " ".join(self.sub_plan.split(" ")[-2:])
         # assert target_room == self.current_room, f"{target_room} != {self.current_room}"
         target_pos = self.env_api["center_of_room"](target_room)
         self.explore_count += 1
@@ -489,19 +507,19 @@ class lm_agent:
         if self.rotated == 16:
             self.roatated = 0
             self.rooms_explored[target_room] = "all"#every direction going through
-            self.plan = None
+            self.sub_plan = None
             return None
         self.rotated += 1
         action = {"type": 1}
         return action
 
     def gograsp(self):
-        target_object_id = int(self.plan.split(" ")[-1][1:-1])
+        target_object_id = int(self.sub_plan.split(" ")[-1][1:-1])
         if target_object_id in self.holding_objects_id:
             self.logger.info(f"successful holding!")
             self.object_map[np.where(self.id_map == target_object_id)] = 0
             self.id_map[np.where(self.id_map == target_object_id)] = 0
-            self.plan = None
+            self.sub_plan = None
             return None
 
         if self.target_pos is None:
@@ -516,7 +534,7 @@ class lm_agent:
         ):
             if self.debug:
                 self.logger.debug(f"grasp failed. object is not here any more!")
-            self.plan = None
+            self.sub_plan = None
             return None
         if not self.reach_target_pos(target_object_pos):
             return self.move(target_object_pos)
@@ -529,7 +547,7 @@ class lm_agent:
 
     def goput(self):
         if len(self.holding_objects_id) == 0:
-            self.plan = None
+            self.sub_plan = None
             self.with_character = [self.agent_id]
             return None
         if self.target_pos is None:
@@ -556,7 +574,7 @@ class lm_agent:
     def putin(self):
         if len(self.holding_objects_id) == 1:
             self.logger.info("Successful putin")
-            self.plan = None
+            self.sub_plan = None
             return None
         action = {"type": 4}
         return action
@@ -624,7 +642,381 @@ class lm_agent:
             self.obs["oppo_held_objects"],
             self.oppo_last_room,
         )
+    def LLM_send_progress(self):
+        output = self.LLM.progress_sending(
+            self.num_frames,
+            self.current_room,
+            self.rooms_explored,
+            self.obs["held_objects"],
+            [self.object_info[x] for x in self.satisfied if x in self.object_info],
+            self.object_list,
+            self.object_per_room,
+            self.obs["oppo_held_objects"],
+            self.oppo_last_room
+        )
 
+        return output
+
+    def LLM_meta_plan_init(self):
+        output = self.LLM.meta_plan_init()
+        self.characters += len(output.split(" "))
+        self.comm_num += 1
+        return output
+    
+    def LLM_disscuss_refine(self,refine,oppo_progress):## oppoprogress appear after the metaplan send to teammate and the teammate send oppoprogress to the host
+        output = self.LLM.disscuss_refine(
+            self.host,
+            refine,
+            self.dialogue_history,
+            self.meta_plan,
+            self.num_frames,
+            self.current_room,
+            self.rooms_explored,
+            self.obs["held_objects"],
+            [self.object_info[x] for x in self.satisfied if x in self.object_info],
+            self.object_list,
+            self.object_per_room,
+            oppo_progress,
+            opponent_grabbed_objects=self.obs["oppo_held_objects"],
+            opponent_last_room = self.oppo_last_room
+        )
+        self.characters += len(output.split(" "))
+        self.comm_num += 1
+        return output
+    
+    
+    def LLM_parsing(self):
+        output = self.LLM.parsing(
+            self.meta_plan,
+            self.num_frames,
+            self.current_room,
+            self.rooms_explored,
+            self.obs["held_objects"],
+            self.object_list,
+            self.object_per_room,
+            [self.object_info[x] for x in self.satisfied if x in self.object_info],
+            self.action_history,
+            self.dialogue_history,
+            self.obs["oppo_held_objects"],
+            self.oppo_last_room
+
+        )
+        self.characters += len(output.split(" "))
+        return output
+    
+    def act_capo(self, obs):
+        """
+        执行动作
+
+        参数:
+            obs: 环境观察
+
+        返回:
+            action: 要执行的动作
+        """
+        ##meta_plan init
+        if obs["ep_id"] == 0 :
+            if self.host:
+                meta_plan = self.LLM_meta_plan_init()
+                self.meta_plan = meta_plan
+                action = {
+                        "type": 6,  # 动作类型6表示发送消息
+                        "message": meta_plan,
+                        "turns":"init",
+                        "des":"metaplan"
+                    }
+                self.action_history.append(
+                        f"{'init the meta_plan'} at step {self.num_frames}"
+                    )
+                return action
+            else:
+                return {"type":"waiting"}
+        
+
+        self.obs = obs.copy()
+        self.obs["rgb"] = self.obs["rgb"].transpose(1, 2, 0)
+        self.num_frames = obs["current_frames"]
+        self.steps += 1
+
+        if not self.gt_mask:
+            self.obs["visible_objects"], self.obs["seg_mask"] = self.detect()
+
+        if obs["valid"] == False:
+            if self.last_action is not None and "object" in self.last_action:
+                self.object_map[np.where(self.id_map == self.last_action["object"])] = 0
+                self.id_map[np.where(self.id_map == self.last_action["object"])] = 0
+                self.satisfied.append(self.last_action["object"])
+            self.invalid_count += 1
+            self.plan = None
+            assert self.invalid_count < 10, "invalid action for 10 times"
+
+        # print(f"是否启用通信：{self.communication}")
+        # 处理通信消息
+     
+        # 遍历所有接收到的消息
+        for i in range(len(obs["messages"])):
+            if obs["messages"][i] is not None:
+                # 将消息添加到对话历史中，格式为"智能体名称: 消息内容"
+                # 使用copy.deepcopy确保消息内容不会被意外修改
+                self.dialogue_history.append(
+                    f"{self.agent_names[i]}: {copy.deepcopy(obs['messages'][i])}"
+                )
+        #receive the oppo_progress
+        if obs["progress"][1-self.agent_id] is not None:
+            self.oppo_progress = obs["progress"][1-self.agent_id]#TODO:adding inthe env
+
+        if not self.host and obs["metaplan"][0] is not None:
+            self.meta_plan = obs["metaplan"][0] # TODO:mantor change? A: the mantor will not change
+        #print(self.meta_plan)
+
+        self.position = self.obs["agent"][:3]
+        self.forward = self.obs["agent"][3:]
+        current_room = self.env_api["belongs_to_which_room"](self.position)
+        if current_room is not None:
+            self.current_room = current_room
+        self.room_distance = self.env_api["get_room_distance"](self.position)
+        if (
+            self.current_room not in self.rooms_explored
+            or self.rooms_explored[self.current_room] != "all"
+        ):
+            self.rooms_explored[self.current_room] = "part"
+        if self.agent_id not in self.with_character:
+            self.with_character.append(
+                self.agent_id
+            )  # DWH: buggy env, need to solve later.
+        self.holding_objects_id = []
+        self.with_oppo = []
+        self.oppo_holding_objects_id = []
+        for x in self.obs["held_objects"]:
+            if x["type"] == 0:
+                self.holding_objects_id.append(x["id"])
+                if x["id"] not in self.with_character:
+                    self.with_character.append(
+                        x["id"]
+                    )  # DWH: buggy env, need to solve later.
+                # self.with_character.append(x['id'])
+            elif x["type"] == 1:
+                self.holding_objects_id.append(x["id"])
+                if x["id"] not in self.with_character:
+                    self.with_character.append(
+                        x["id"]
+                    )  # DWH: buggy env, need to solve later.
+                # self.with_character.append(x['id'])
+                for y in x["contained"]:
+                    if y is None:
+                        break
+                    if y not in self.with_character:
+                        self.with_character.append(y)
+                    # self.with_character.append(y)
+        oppo_name = {}
+        oppo_type = {}
+        for x in self.obs["oppo_held_objects"]:
+            if x["type"] == 0:
+                self.oppo_holding_objects_id.append(x["id"])
+                self.with_oppo.append(x["id"])
+                oppo_name[x["id"]] = x["name"]
+                oppo_type[x["id"]] = x["type"]
+            elif x["type"] == 1:
+                self.oppo_holding_objects_id.append(x["id"])
+                self.with_oppo.append(x["id"])
+                oppo_name[x["id"]] = x["name"]
+                oppo_type[x["id"]] = x["type"]
+                for i, y in enumerate(x["contained"]):
+                    if y is None:
+                        break
+                    self.with_oppo.append(y)
+                    oppo_name[y] = x["contained_name"][i]
+                    oppo_type[y] = 0
+        for obj in self.with_oppo:
+            if obj not in self.satisfied:
+                self.satisfied.append(obj)
+                self.object_info[obj] = {
+                    "name": oppo_name[obj],
+                    "id": obj,
+                    "type": oppo_type[obj],
+                }
+                self.object_map[np.where(self.id_map == obj)] = 0
+                self.id_map[np.where(self.id_map == obj)] = 0
+        if not self.obs["valid"]:  # invalid, the object is not there
+            if self.last_action is not None and "object" in self.last_action:
+                self.object_map[np.where(self.id_map == self.last_action["object"])] = 0
+                self.id_map[np.where(self.id_map == self.last_action["object"])] = 0
+        if len(self.dropping_object) > 0 and self.obs["status"] == 1:
+            self.logger.info(f"Drop object: {self.dropping_object}")
+            self.satisfied += self.dropping_object
+            self.dropping_object = []
+            if len(self.holding_objects_id) == 0:
+                self.logger.info("successful drop!")
+                self.sub_plan = None
+
+        ignore_obstacles = []
+        ignore_ids = []
+        self.with_character = [self.agent_id]
+        temp_with_oppo = []
+        for x in self.obs["held_objects"]:
+            if x is None or x["id"] is None:
+                continue
+            self.with_character.append(x["id"])
+            if "contained" in x:
+                for y in x["contained"]:
+                    if y is not None:
+                        self.with_character.append(y)
+
+        for x in self.force_ignore:
+            self.with_character.append(x)
+
+        for x in self.obs["oppo_held_objects"]:
+            if x is None or x["id"] is None:
+                continue
+            temp_with_oppo.append(x["id"])
+            if "contained" in x:
+                for y in x["contained"]:
+                    if y is not None:
+                        temp_with_oppo.append(y)
+
+        ignore_obstacles = self.with_character + ignore_obstacles
+        ignore_ids = self.with_character + ignore_ids
+        ignore_ids = temp_with_oppo + ignore_ids
+        ignore_ids += self.satisfied
+        ignore_obstacles += self.satisfied
+
+        self.agent_memory.update(
+            obs,
+            ignore_ids=ignore_ids,
+            ignore_obstacles=ignore_obstacles,
+            save_img=self.save_img,
+        )
+        
+        if self.obs["status"] == 0:  # ongoing 
+            return {"type": "ongoing"}
+        else:
+            if self.obs["call_for_disscussion"] == 1:
+                return {"type":"wait_for_disscussion"}
+
+        
+
+        self.get_new_object_list()## self.new_object_list :{0: [], 1: [], 2: []}
+        # print(self.new_object_list)
+        self.get_object_list()## self.object_list:{0: [], 1: [], 2: []}
+        ###self.goal_objects:{"name":num, ....}
+        ###self.object_infos: {id: {id: xx, type: 0/1/2, name: sss, position: x,y,z}}
+
+
+        # exchange progress before disscussion
+        if self.obs["disscussion"] == 1 and self.obs["turns"] == 0 :
+                progress = self.LLM_send_progress()
+                action = {
+                        "type": 6,  # 动作类型6表示发送消息
+                        "message": progress,
+                        "turns":0,
+                        "des":"progress"
+                    }
+                self.action_history.append(f"disscussion start at step {self.num_frames}")
+                return action
+            
+        if self.obs["disscussion"] == 1 and self.obs["turns"] == 1:#TODO:satisfied in the env and the round limitation
+            if self.host:
+                meta_plan = self.LLM_disscuss_refine(1,self.oppo_progress)#1 denote refine ,0 denote disscuss
+                self.meta_plan = meta_plan
+                action = {
+                        "type": 6,  # 动作类型6表示发送消息
+                        "message":self.meta_plan,
+                        "turns":1,
+                        "des":"metaplan"
+                    }
+                return action
+            else:
+                return {"type":"waiting"}
+            
+        if self.obs["disscussion"] == 1 and self.obs["turns"] == 2:
+            if self.host:
+                message = self.LLM_disscuss_refine(0,self.oppo_progress)
+                action = {
+                        "type": 6,  # 动作类型6表示发送消息
+                        "message":message,
+                        "turns":2,
+                        "des":"messages"
+                    }
+                return action
+            else:
+                return {"type":"waiting"}
+            
+        if self.obs["disscussion"] == 1 and self.obs["turns"] == 3:#satisfied or not in the env
+            if not self.host:
+                message = self.LLM_disscuss_refine(0,self.oppo_progress)
+                action = {
+                        "type": 6,  # 动作类型6表示发送消息
+                        "message":message,
+                        "turns":3,
+                        "des":"messages"
+                    }
+                return action
+            else:
+                return {"type":"waiting"}           
+            
+
+        # disscussion_trigger_0
+        
+        for t_object in self.goal_objects.keys():
+            for type , object_list in self.new_object_list.items():
+                if len(object_list) != 0:
+                    for _id in object_list:
+                        name = self.object_info.get(_id).get("name")
+                        if t_object in name:
+                            return {"type":"wait_for_disscussion"}
+
+        info = {
+            "satisfied": self.satisfied,##[id ...]
+            "object_list": self.object_list,
+            "new_object_list": self.new_object_list,## {0:[id...],1:[id ...],2:[id...]}
+            "current_room": self.current_room,
+            "visible_objects": self.filtered(self.obs["visible_objects"]),
+            "obs": {
+                k: v
+                for k, v in self.obs.items()
+                if k
+                not in ["rgb", "depth", "seg_mask", "camera_matrix", "visible_objects"]
+            },
+        }
+        #TODO:disscussion and normal acting
+
+
+        
+        action = None
+        while action is None:
+            if self.sub_plan is None:
+                self.target_pos = None
+                sub_plan = self.LLM_parsing()
+                self.sub_plan = sub_plan
+                self.action_history.append(
+                            f"{self.sub_plan} at step {self.num_frames}"
+                    )
+            
+            if self.sub_plan.startswith("go to"):#TODO:rewrite the low level action
+                action = self.gotoroom()
+            elif self.sub_plan.startswith("explore"):
+                self.explore_count = 0
+                action = self.goexplore()
+            elif self.sub_plan.startswith("go grasp"):
+                action = self.gograsp()
+            elif self.sub_plan.startswith("put"):
+                action = self.putin()
+            elif self.sub_plan.startswith("transport"):
+                action = self.goput()
+            elif self.sub_plan.startswith("wait"):
+                action = None
+                break
+            else:
+                raise ValueError(f"unavailable plan {self.sub_plan}")
+
+
+        if self.debug:
+            self.logger.info(self.sub_plan)
+            self.logger.debug(info)
+        self.last_action = action
+        return action
+
+        
     def act(self, obs):
         """
         执行动作
@@ -863,10 +1255,5 @@ class lm_agent:
     
     def get_tokens(self):
         return self.LLM.tokens
-    
-    def get_com_cost(self):
-        return self.LLM.communication_cost
     def get_api_num(self):
         return self.LLM.api
-    def get_total_cost(self):## for generated content counting
-        return self.LLM.total_cost

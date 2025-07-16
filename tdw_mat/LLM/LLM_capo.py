@@ -24,7 +24,7 @@ from datetime import datetime
 
 
 
-class LLM:
+class LLM_capo:
     """
     大语言模型接口类
     主要功能：
@@ -63,29 +63,54 @@ class LLM:
         self.agent_name = "Alice" if agent_id == 0 else "Bob"  # 智能体名称
         self.oppo_name = "Alice" if agent_id == 1 else "Bob"  # 对手名称
         self.oppo_pronoun = "she" if agent_id == 1 else "he"  # 对手代词
-        self.tokens = 0
-        self.api = 0
+        
+        ##counting
+        self.tokens = 0 #generated-token-counting
+        self.api = 0 #api-usage
+        
+
+
         # 调试和配置
         self.debug = sampling_parameters.debug  # 调试模式
         self.rooms = []  # 房间列表
-
-        # 提示词模板相关
+        self.single = 0
         self.prompt_template_path = prompt_template_path
-        self.single = "single" in self.prompt_template_path
         df = pd.read_csv(self.prompt_template_path)
-        self.prompt_template = (
-            df["prompt"][0]
-            .replace("$AGENT_NAME$", self.agent_name)
-            .replace("$OPPO_NAME$", self.oppo_name)
-        )
-        if communication:
-            self.generator_prompt_template = (
-                df["prompt"][1]
-                .replace("$AGENT_NAME$", self.agent_name)
-                .replace("$OPPO_NAME$", self.oppo_name)
+        #set prompt for every module
+        self.parsing_prompt = (
+                df["prompt"][4]
+                .replace("$AGENT\_NAME$",self.agent_name)
+                .replace("$OPP\_NAME$",self.oppo_name)
             )
+        if agent_id == 0:
+            self.meta_plan_prompt = df["prompt"][0]
+            self.host_prompt = df["prompt"][1]
+            self.teammate_prompt = None
+            self.refiner_prompt = df["prompt"][3]
+            
         else:
-            self.generator_prompt_template = None
+            self.meta_plan_prompt = None
+            self.host_prompt = None
+            self.teammate_prompt = df["prompt"][2]
+            self.refiner_prompt = None
+        
+        # 提示词模板相关
+        # self.prompt_template_path = prompt_template_path
+        # self.single = "single" in self.prompt_template_path
+        # df = pd.read_csv(self.prompt_template_path)
+        # self.prompt_template = (
+        #     df["prompt"][0]
+        #     .replace("$AGENT_NAME$", self.agent_name)
+        #     .replace("$OPPO_NAME$", self.oppo_name)
+        # )
+        # if communication:
+        #     self.generator_prompt_template = (
+        #         df["prompt"][1]
+        #         .replace("$AGENT_NAME$", self.agent_name)
+        #         .replace("$OPPO_NAME$", self.oppo_name)
+        #     )
+        # else:
+        #     self.generator_prompt_template = None
 
         # 模型配置
         self.communication = communication  # 是否启用通信
@@ -95,15 +120,17 @@ class LLM:
         self.tokenizer = None  # 分词器
         self.lm_id = lm_id  # 模型ID
         self.chat = (
-            "gpt-3.5-turbo" in lm_id or "gpt-4" in lm_id or "deepseek" in lm_id
+            "gpt-3.5-turbo" in lm_id or "gpt-4" in lm_id or "deepseek" in lm_id or source =="openai"
         )  # 是否为聊天模型
         self.OPENAI_KEY = None  # OpenAI API密钥
-        self.total_cost = 0  # 总花费
-        self.communication_cost = 0  # 通信花费
+        
         # 根据不同来源初始化模型
         if self.source == "openai":
             # OpenAI模型初始化
-            client = AzureOpenAI()
+            client = OpenAI(
+                api_key="sk-tkQC6suw159dxQoCkSrf2pTmSbIBawo7pP15FQN7d5vfTCxO",
+                base_url="https://api.agicto.cn/v1",
+            )
             if self.chat:
                 self.sampling_params = {
                     "max_tokens": sampling_parameters.max_tokens,
@@ -173,7 +200,8 @@ class LLM:
                             model=self.lm_id, messages=prompt, **sampling_params
                         )
                         self.api += 1
-                        usage = response.usage.completion_tokens## generated response tokens
+                        print(self.api)
+                        self.tokens += response.usage.completion_tokens## generated response tokens
                         if self.debug:
                             with open(f"LLM/chat_raw.json", "a") as f:
                                 f.write(
@@ -290,7 +318,7 @@ class LLM:
 
             def _generate(prompt, sampling_params):
                 usage = 0
-                if source == "deepseek":
+                if source == "deepseek" or source =="openai":
                     return openai_generate(prompt, sampling_params)
                 elif self.source == "hf":
                     return hf_generate(prompt, sampling_params)
@@ -318,9 +346,8 @@ class LLM:
         self.rooms = rooms_name
         self.goal_desc = self.goal2description(goal_objects)
         self.tokens = 0
-        self.communication_cost = 0
         self.api = 0
-        self.total_cost = 0
+        
     def goal2description(self, goals):  # {predicate: count}
         """
         将目标转换为描述文本
@@ -339,7 +366,7 @@ class LLM:
         s = s[:-2] + f" to the bed."
         return s
 
-    def parse_answer(self, available_actions, text):
+    def parse_answer(self, available_actions, text):# TODO:write a capo version
         """
         解析模型回答
 
@@ -440,6 +467,7 @@ class LLM:
         print("WARNING! No available action parsed!!! Random choose one")
         flags = "failed to parse"
         return random.choice(available_actions), flags
+    
 
     def progress2text(
         self,
@@ -620,6 +648,7 @@ class LLM:
         return s
 
     def get_available_plans(self, message):#plans according to the state
+
         """
         获取可用的规划
 
@@ -693,9 +722,203 @@ class LLM:
             plans += f"{chr(ord('A') + i)}. {plan}\n"
 
         return plans, len(available_plans), available_plans
+    
+    def get_available_plans_capo(self):#plans according to the state,no message sending plan here
+        """
+        获取可用的规划
 
+        返回:
+            可用规划列表
+        """
+        """
+        go to room {}
+        explore current room {}
+        go grasp target object / container {}
+        holding both container and object: put obj into the container
+        holding any goal objects: transport holding objects to the bed
+        """
+        available_plans = []
+       
+        if (
+            self.holding_objects[0]["type"] is None
+            or self.holding_objects[1]["type"] is None
+        ):
+            for obj in self.object_list[0]:
+                available_plans.append(
+                    f"go grasp target object <{obj['name']}> ({obj['id']})"
+                )
+            if not (
+                self.holding_objects[0]["type"] == 1
+                or self.holding_objects[1]["type"] == 1
+            ):
+                for obj in self.object_list[1]:
+                    available_plans.append(
+                        f"go grasp container <{obj['name']}> ({obj['id']})"
+                    )
+        else:
+            if (
+                self.holding_objects[0]["type"] == 1
+                and self.holding_objects[0]["contained"][-1] is None
+                and self.holding_objects[1]["type"] == 0
+            ):
+                available_plans.append(
+                    f"put <{self.holding_objects[1]['name']}> ({self.holding_objects[1]['id']}) into the container <{self.holding_objects[0]['name']}> ({self.holding_objects[0]['id']})"
+                )
+            elif (
+                self.holding_objects[1]["type"] == 1
+                and self.holding_objects[1]["contained"][-1] is None
+                and self.holding_objects[0]["type"] == 0
+            ):
+                available_plans.append(
+                    f"put <{self.holding_objects[0]['name']}> ({self.holding_objects[0]['id']}) into the container <{self.holding_objects[1]['name']}> ({self.holding_objects[1]['id']})"
+                )
+        if (
+            any(obj["type"] is not None for obj in self.holding_objects)
+            and len(self.object_list[2]) != 0
+        ):
+            available_plans.append(f"transport objects I'm holding to the bed")
+        for room in self.rooms:
+            if room == self.current_room or room is None or room == "None":
+                continue
+            available_plans.append(f"go to {room}")
+        if (
+            self.current_room not in self.rooms_explored
+            or self.rooms_explored[self.current_room] != "all"
+        ):
+            available_plans.append(f"explore current room {self.current_room}")
 
+        plans = ""
+        for i, plan in enumerate(available_plans):
+            plans += f"{chr(ord('A') + i)}. {plan}\n"
 
+        return plans, len(available_plans), available_plans
+
+    def meta_plan_init(self):
+        ## init the meta plan
+        prompt = self.meta_plan_prompt
+        prompt = prompt.replace("$GOAL$",self.goal_desc)
+       
+        chat_prompt = [{"role": "user", "content": prompt}]
+        output,usage = self.generator(chat_prompt,self.sampling_params)
+        meta_plan = output[0]
+    
+        return meta_plan
+    
+    def disscuss_refine(self,
+                        host,
+                        refine,
+                        dialogue_history,
+                        meta_plan,
+                        current_step,
+                        current_room,
+                        rooms_explored,
+                        holding_objects,
+                        satisfied,
+                        object_list,
+                        obj_per_room,
+                        oppo_progress=None,
+                        opponent_grabbed_objects=None,
+                        opponent_last_room=None,
+                    
+    ):
+        self.current_room = current_room
+        self.rooms_explored = rooms_explored
+        self.holding_objects = holding_objects
+        self.object_list = object_list
+        self.obj_per_room = obj_per_room
+
+        progress_desc = self.progress2text(
+            current_step, satisfied, opponent_grabbed_objects, opponent_last_room
+        )
+        dialogue_history_desc = "\n".join(
+            dialogue_history[-3:] if len(dialogue_history) > 3 else dialogue_history
+        )
+        if refine ==1:
+            prompt = self.refiner_prompt#progress adative
+        elif host == 1 and refine == 0:
+            prompt = self.host_prompt #TODO:change the mantor agent 
+        else:
+            prompt = self.teammate_prompt
+
+        prompt = prompt.replace("$GOAL$",self.goal_desc)
+        prompt = prompt.replace("$PREVIOUS\_PLAN$",meta_plan)#meta plan need something to send
+        prompt = prompt.replace("$DIALOGUE\_HISTORY$",dialogue_history_desc)
+        prompt = prompt.replace("$PROGRESS$",progress_desc)
+        prompt = prompt.replace("$OPP\_PROGRESS$",oppo_progress)#how to get opp progress
+        
+        chat_prompt = [{"role": "user", "content": prompt}]
+        output,usage = self.generator(chat_prompt,self.sampling_params)
+        message = output[0]
+        return message
+    
+    def parsing(self,
+                meta_plan,
+                current_step,
+                current_room,
+                rooms_explored,
+                holding_objects,
+                object_list,
+                obj_per_room,
+                satisfied,
+                action_history,
+                dialogue_history,
+                opponent_grabbed_objects=None,
+                opponent_last_room=None,
+
+        ):
+                self.current_room = current_room
+                self.rooms_explored = rooms_explored
+                self.holding_objects = holding_objects
+                self.object_list = object_list
+                self.obj_per_room = obj_per_room
+
+                prompt = self.parsing_prompt
+
+                progress_desc = self.progress2text(
+                current_step, satisfied, opponent_grabbed_objects, opponent_last_room
+                )
+                #action and dialogue history are  windows
+                action_history_desc = ", ".join(
+                    action_history[-10:] if len(action_history) > 10 else action_history
+                )
+                dialogue_history_desc = "\n".join(
+                    dialogue_history[-3:] if len(dialogue_history) > 3 else dialogue_history
+                )
+                prompt = prompt.replace("$GOAL$",self.goal_desc)
+                prompt = prompt.replace("$META\_PLAN$",meta_plan)
+                prompt = prompt.replace("$DIALOGUE\_HISTORY$",dialogue_history_desc)
+                prompt = prompt.replace("$PROGRESS$",progress_desc)
+                prompt = prompt.replace("$PREVIOUS\_ACTIONS$",action_history_desc)
+
+                available_plans, num, available_plans_list = self.get_available_plans_capo()
+                prompt = prompt.replace("$ACTION\_LIST$",available_plans)
+               
+                chat_prompt = [{"role": "user", "content": prompt}]
+                output,usage = self.generator(chat_prompt,self.sampling_params)
+                output = output[0]
+                plan, flags = self.parse_answer(available_plans_list, output)
+                return plan
+
+    def progress_sending(self,
+                         current_step,
+                         current_room,
+                         rooms_explored,
+                         holding_objects,
+                         satisfied,
+                         object_list,
+                         obj_per_room,
+                         opponent_grabbed_objects,
+                         opponent_last_room
+                         ):
+        self.current_room = current_room
+        self.rooms_explored = rooms_explored
+        self.holding_objects = holding_objects
+        self.object_list = object_list
+        self.obj_per_room = obj_per_room
+        progress_desc = self.progress2text(
+            current_step, satisfied, opponent_grabbed_objects, opponent_last_room
+        )
+        return progress_desc
 
     def run(
         self,
@@ -738,15 +961,20 @@ class LLM:
         self.holding_objects = holding_objects
         self.object_list = object_list
         self.obj_per_room = obj_per_room
+        #getting progress
         progress_desc = self.progress2text(
             current_step, satisfied, opponent_grabbed_objects, opponent_last_room
         )
+        #action and dialogue history as a windows
         action_history_desc = ", ".join(
             action_history[-10:] if len(action_history) > 10 else action_history
         )
         dialogue_history_desc = "\n".join(
             dialogue_history[-3:] if len(dialogue_history) > 3 else dialogue_history
         )
+
+
+
         prompt = self.prompt_template.replace("$GOAL$", self.goal_desc)
         prompt = prompt.replace("$PROGRESS$", progress_desc)
         prompt = prompt.replace("$ACTION_HISTORY$", action_history_desc)

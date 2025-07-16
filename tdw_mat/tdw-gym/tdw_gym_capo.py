@@ -1,8 +1,9 @@
 import string
 from typing import Optional
-
+import re
 import gym
 from gym.core import Env
+import gym.spaces
 import numpy as np
 import os
 import time
@@ -83,6 +84,21 @@ class TDW(Env):
         self.enable_collision_detection = enable_collision_detection
         self.controller = None
         self.message_per_frame = 500
+        #three kind of message
+        self.progress = [None,None]
+        self.metaplan = [None,None]
+        self.disscussion = [None,None]
+
+        #disscussion related variety
+        self.disscuss_start = 0
+        self.disscuss_status = [0,0]
+        self.disscuss_turn = None
+        self.call_for_disscussion = 0
+        self.disscuss_round = None#calculate the round of the disscussion
+        self.ep_id = 0
+        ##goal check
+        self.goal_complete = 0
+
         rgb_space = gym.spaces.Box(0, 256,
                                  (3,
                                   self.screen_size,
@@ -115,7 +131,7 @@ class TDW(Env):
             'contained': gym.spaces.Tuple(gym.spaces.Discrete(30) for _ in range(3)),
             'contained_name': gym.spaces.Tuple(gym.spaces.Text(max_length=100, charset=string.printable) for _ in range(3))
         })
-        
+        # change the obs space definition
         self.observation_space_single = gym.spaces.Dict({
             'rgb': rgb_space,
             'seg_mask': seg_space,
@@ -130,6 +146,12 @@ class TDW(Env):
             'camera_matrix': gym.spaces.Box(-30, 30, (4, 4), dtype=np.float32),
             'messages': gym.spaces.Tuple(gym.spaces.Text(max_length=1000, charset=string.printable) for _ in range(2)),
             'current_frames': gym.spaces.Discrete(30),
+            "progress":gym.spaces.Tuple(gym.spaces.Text(max_length=1000, charset=string.printable) for _ in range(2)),
+            "metaplan":gym.spaces.Tuple(gym.spaces.Text(max_length=1000, charset=string.printable) for _ in range(2)),
+            "call_for_disscussion":gym.spaces.Discrete(2),
+            "disscussion":gym.spaces.Discrete(2),
+            "turns":gym.spaces.Box(0,3,(1,),dtype=np.int8),
+            "ep_id":gym.spaces.Box(0,3000,(1,),dtype=np.int8)
         })
 
         self.observation_space = gym.spaces.Dict({
@@ -213,6 +235,7 @@ class TDW(Env):
         self.success = False
         self.messages = [None for _ in range(self.number_of_agents)]
         self.reward = 0
+        self.ep_id = 0
         scene_info = options
         print(scene_info)
         self.satisfied = {}
@@ -343,6 +366,15 @@ class TDW(Env):
             'get_with_character_mask': partial(self.get_with_character_mask, agent_id=i),
         } for i in range(self.number_of_agents)]
         self.obs = self.get_obs()
+        for replicant_id in self.controller.replicants:
+                self.obs[str(replicant_id)]['messages'] = copy.deepcopy(self.messages)#
+                self.obs[str(replicant_id)]["progress"] = copy.deepcopy(self.progress)
+                self.obs[str(replicant_id)]["metaplan"] = copy.deepcopy(self.metaplan)
+                self.obs[str(replicant_id)]['current_frames'] = self.num_frames
+                self.obs[str(replicant_id)]["call_for_disscussion"] = self.call_for_disscussion
+                self.obs[str(replicant_id)]["disscussion"] = self.disscuss_start
+                self.obs[str(replicant_id)]["turns"] = self.disscuss_turn
+                self.obs[str(replicant_id)]["ep_id"] = self.ep_id
         return self.obs_filter(self.obs), info, env_api
 
     def pos_to_2d_box_distance(self, px, py, rx1, ry1, rx2, ry2):
@@ -416,7 +448,7 @@ class TDW(Env):
     def get_2d_distance(self, pos1, pos2):
         return np.linalg.norm(np.array(pos1[[0, 2]]) - np.array(pos2[[0, 2]]))
 
-    def check_goal(self):
+    def check_goal(self):##
         r'''
         Check if the goal is achieved
         return: count, total, done
@@ -641,6 +673,10 @@ class TDW(Env):
                 self.action_buffer[replicant_id].append({**copy.deepcopy(action), 'type': 'drop'})
             elif action["type"] == 6:      # send message
                 self.action_buffer[replicant_id].append({**copy.deepcopy(action), 'type': 'send_message'})
+            elif action["type"] == "wait_for_disscussion":
+                self.disscuss_status[replicant_id] = 1#TODO:apply for disscussion
+            elif action["type"] == "waiting":# TODO:check waiting
+                continue
             else:
                 assert False, "Invalid action type"
 
@@ -648,15 +684,17 @@ class TDW(Env):
         valid = [True for _ in range(self.number_of_agents)]
         delay_frame_count = [0 for _ in range(self.number_of_agents)]
         finish = False
+        if self.disscuss_status[0] == 1 and self.disscuss_status[1] == 1:
+                finish = True
         num_frames = 0
         while not finish: # continue until any agent's action finishes
             for replicant_id in self.controller.replicants:
                 if delay_frame_count[replicant_id] > 0:
                     delay_frame_count[replicant_id] -= 1
-                    continue
-                if self.controller.replicants[replicant_id].action.status != ActionStatus.ongoing and len(self.action_buffer[replicant_id]) == 0:
+                    continue##TODO:init disscussion and this finish:any agent finish
+                if self.controller.replicants[replicant_id].action.status != ActionStatus.ongoing and len(self.action_buffer[replicant_id]) == 0 and self.disscuss_status[replicant_id] != 1:
                     finish = True
-                elif self.controller.replicants[replicant_id].action.status != ActionStatus.ongoing:
+                elif self.controller.replicants[replicant_id].action.status != ActionStatus.ongoing and self.disscuss_status[replicant_id] != 1:
                     curr_action = self.action_buffer[replicant_id].pop(0)
                     if curr_action['type'] == 'move_forward':       # move forward 0.5m
                         self.controller.replicants[replicant_id].move_forward()
@@ -693,9 +731,53 @@ class TDW(Env):
                                     self.containment_all[container] = [target]
                     elif curr_action["type"] == 'drop':      # drop held object in arm
                         self.controller.replicants[replicant_id].drop(curr_action['arm'], max_num_frames = 30)
-                    elif curr_action["type"] == 'send_message':      # send message
-                        self.messages[replicant_id] = copy.deepcopy(curr_action['message'])
-                        delay_frame_count[replicant_id] = max((len(self.messages[replicant_id]) - 1) // self.message_per_frame, 0)
+                    elif curr_action["type"] == 'send_message':  
+                            # send message
+                        if curr_action["des"] == "progress":
+                            self.progress[replicant_id] = copy.deepcopy(curr_action['message'])#message the agent send
+                            delay_frame_count[replicant_id] = max((len(self.progress[replicant_id]) - 1) // self.message_per_frame, 0)
+                            self.disscuss_turn = curr_action["turns"] + 1 
+                        if curr_action["des"] == "messages":
+                            self.messages[replicant_id] = copy.deepcopy(curr_action["message"])
+                            delay_frame_count[replicant_id] = max((len(self.messages[replicant_id]) - 1) // self.message_per_frame, 0)
+                            if curr_action["turns"] < 3:
+                                self.disscuss_turn = curr_action["turns"] + 1
+                            else:
+                                if self.disscuss_round < 2:##the budget in tdw is 3
+                                    check_message = curr_action['message']
+                                    try:
+                                        match = re.search(r"Satisfaction\s+level:\s*(\w+)", check_message)##TODO:lower format,try,except
+                                        if match:
+                                            satisfaction_level = match.group(1)
+                                            print("Satisfaction Level:", satisfaction_level)
+                                        if satisfaction_level == "NO" or satisfaction_level =="No":
+                                            self.disscuss_turn = 1
+                                            self.disscuss_round += 1
+                                        else:
+                                            self.disscuss_start = 0
+                                            self.disscuss_turn = None
+                                            self.disscuss_round = None
+                                    except:
+                                        print("no_match")
+                                else:
+                                    self.disscuss_start = 0
+                                    self.disscuss_turn = None
+                                    self.disscuss_round  = None
+
+
+                        if curr_action["des"] == "metaplan":
+                            self.metaplan[replicant_id] = copy.deepcopy(curr_action["message"])
+                            delay_frame_count[replicant_id] = max((len(self.metaplan[replicant_id]) - 1) // self.message_per_frame, 0)
+                            if curr_action["turns"] != "init":
+                                self.disscuss_turn = curr_action["turns"] + 1 
+                            else:
+                                self.disscuss_turn = 2
+                                self.disscuss_start = 1
+                                self.disscuss_round = 0
+                       
+                        
+                            
+                        
             if finish: break
             data = self.controller.communicate([])
             for i in range(len(data) - 1):
@@ -708,8 +790,24 @@ class TDW(Env):
 
         self.num_frames += num_frames
         self.action_list.append(actions)
-        goal_put, goal_total, self.success = self.check_goal()#whole success
+        goal_put, goal_total, self.success = self.check_goal()#whole success#TODO:disscussion trigger 2
         reward = 0
+
+
+        if self.disscuss_status[0] == 1 and self.disscuss_status[1] == 1 :
+            self.disscuss_start = 1
+            self.disscuss_status = [0,0]
+            self.disscuss_turn = 0 
+            self.call_for_disscussion = 0
+            self.disscuss_round = 0
+        else:
+            if not (self.disscuss_status[0] == self.disscuss_status[1]):
+                self.call_for_disscussion = 1#TODO:how to activate another agent to start disscussion
+
+        #TODO:obs updating
+
+
+        
         for replicant_id in self.controller.replicants:
             action = actions[str(replicant_id)]
             task_status = self.controller.replicants[replicant_id].action.status
@@ -732,22 +830,44 @@ class TDW(Env):
         if self.num_frames >= self.max_frame or self.success:
             done = True
             self.done = True
-        
+        self.ep_id += 1
         obs = self.get_obs()
         # add messages to obs
         if self.number_of_agents == 2:
             for replicant_id in self.controller.replicants:
                 obs[str(replicant_id)]['messages'] = copy.deepcopy(self.messages)#
+                obs[str(replicant_id)]["progress"] = copy.deepcopy(self.progress)
+                obs[str(replicant_id)]["metaplan"] = copy.deepcopy(self.metaplan)
             self.messages = [None for _ in range(self.number_of_agents)]
+            self.metaplan = [None for _ in range(self.number_of_agents)]
+            self.progress = [None for _ in range(self.number_of_agents)]
 
         for replicant_id in self.controller.replicants:
             obs[str(replicant_id)]['valid'] = valid[replicant_id]
             obs[str(replicant_id)]['current_frames'] = self.num_frames
+            obs[str(replicant_id)]["call_for_disscussion"] = self.call_for_disscussion
+            obs[str(replicant_id)]["disscussion"] = self.disscuss_start
+            obs[str(replicant_id)]["turns"] = self.disscuss_turn
+            obs[str(replicant_id)]["ep_id"] = self.ep_id
+        if goal_put > self.goal_complete:## move behind the get_obs
+            self.call_for_disscussion = 1
+            for replicant_id in self.controller.replicants:
+                obs[str(replicant_id)]["call_for_disscussion"] = self.call_for_disscussion
+            self.goal_complete = goal_put    
 
+
+        
+
+       
+        
+        
+        
+        ##TODO:adding other information into the obs
         info = self.get_info()
         info['done'] = done
         info['num_frames_for_step'] = num_frames
         info['num_step'] = self.num_step
+        
         if done:
             info['reward'] = self.reward
 
