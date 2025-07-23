@@ -9,24 +9,23 @@
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
-            "program": "./tdw-gym/challenge_oppo.py",
+            "program": "./testing_agents/test_symbolic_LLMs_capo.py",
             "console": "integratedTerminal",
             "args": [
-                "--output_dir","results_oppo",
-                "--lm_id","deepseek-chat",
-                "--experiment_name","LMs_deepseek-chat",
-                "--run_id","run_1",
-                "--port","10004",
-                "--agents","lm_agent_oppo","lm_agent_oppo",
                 "--communication",
-                "--prompt_template_path","LLM/zmwang_prompt_v3.csv",
-                "--max_tokens","512",
-                "--data_prefix","dataset/dataset_test/",
-                "--eval_episodes","0",
-                "--screen_size","256",
-                "--no_save_img"
+                "--prompt_template_path","LLM/capo_prompt.csv",
+                "--mode","LLMs_comm_gpt-4",
+                "--executable_file","../executable/linux_exec.v2.3.0.x86_64",
+                "--base-port","6315",
+                "--lm_id","gpt-4o",
+                "--source","openai",
+                "--t","0.7",
+                "--max_tokens","256",
+                "--num_runs","1",
+                "--num-per-task","2"
+
             ],
-            "cwd":"/home/kking/coela/oppo-reasoner/tdw_mat"
+            "cwd":"/home/kking/coela/oppo-reasoner/cwah"
             
         }
     ]

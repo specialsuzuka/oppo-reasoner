@@ -16,7 +16,7 @@ from functools import partial
 import re
 
 
-class UnityEnvironment(BaseUnityEnvironment):
+class UnityEnvironment_capo(BaseUnityEnvironment):
 
 	def __init__(self,
 				 num_agents=2,
@@ -46,7 +46,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 
 		self.task_goal, self.goal_spec = {0: {}, 1: {}}, {0: {}, 1: {}}
 		self.env_task_set = env_task_set
-		super(UnityEnvironment, self).__init__(
+		super(UnityEnvironment_capo, self).__init__(
 			num_agents=num_agents,
 			max_episode_length=max_episode_length,
 			observation_types=observation_types,
@@ -64,6 +64,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 		if self.observation_types[0] == 'full_image':
 			self.default_image_width = 1024		
 		self.default_image_height = 256
+		#for messages exchange
 		self.message_said = [None for _ in range(num_agents)]
 		self.gt_seg = gt_seg
 		self.save_image = save_image
@@ -86,7 +87,19 @@ class UnityEnvironment(BaseUnityEnvironment):
 		self.detection_name_id_map = {name:  (i + 1) * 10 for i, name in enumerate(self.detection_all_object)}
 		self.location = None
 		self.keep_move_steps = None
- 
+
+		#communication attribution
+		self.ep_id = 0
+		self.call_for_disscussion = 0 #apply for disscussion
+		self.disscusion_status = [0,0] # record the disscussion status
+		self.disscussion = None # if disscussion
+		self.turns = None#
+		self.round = None
+		self.progress = [None,None]
+		self.metaplan = [None,None]
+		self.unsatisfied = None
+
+
 	def reward(self):
 		reward = 0.
 		done = True
@@ -309,9 +322,17 @@ class UnityEnvironment(BaseUnityEnvironment):
 		self.task_name = env_task['task_name']
 		self.cache_id_map = dict()
 		self.cache_data_map = dict() # For collecting data
-
+		self.ep_id = 0
+		self.call_for_disscussion = 0 #apply for disscussion
+		self.disscusion_status = [0,0] # record the disscussion status
+		self.disscussion = None # if disscussion
+		self.turns = None#
+		self.round = None
+		self.progress = [None,None]
+		self.metaplan = [None,None]
 		old_env_id = self.env_id
 		self.env_id = env_task['env_id']
+		self.unsatisfied = None
 		print("Resetting... Envid: {}. Taskid: {}. Index: {}".format(self.env_id, self.task_id, task_id))
 
 		# TODO: in the future we may want different goals
@@ -404,21 +425,59 @@ class UnityEnvironment(BaseUnityEnvironment):
 		if self.steps > 245:
 			print("Warning: too many steps")
 		K = 500
-		actions = [utils.get_action_name(x) for x in action_dict.values()]# actions name
+		actions = [utils.get_action_name(x) for x in action_dict.values()]# TODO:actions name
 		action_dict_verbose = copy.deepcopy(action_dict)
 		action_dict_tobe_changed = copy.deepcopy(action_dict)
-		saying = [None for _ in range(len(actions))]
-		say = False
+		saying = [None for _ in range(len(actions))]#TODO:progress and metaplan adding
+		say = False#? delete
 		for i, action in enumerate(actions):
 			random_flag = False
-			if action == 'send_message':
+			if 'send_message' in action:#TODO:need changing
 				say = True
 				saying[i] = utils.get_message_name(action_dict_tobe_changed[i])
-				if len(saying[i]) > K:
-					saying[i] = saying[i][:K]
-					print("Message too long, truncating to {}".format(K))
+				# if len(saying[i]) > K:
+				# 	saying[i] = saying[i][:K]
+				# 	print("Message too long, truncating to {}".format(K))
 				action_dict_tobe_changed[i] = None
+				talking = int(action[-1])
+				if talking == 1:
+					self.turns += 1
+				else:
+					if self.round < 2:#TODO:satisfied or not check
+						match = re.search(r"Satisfaction\s+level:\s*(\w+)", saying[i])
+						if match:
+							satisfaction_level = match.group(1)
+							if satisfaction_level == "No" or satisfaction_level == "NO":
+								self.round += 1
+								self.turns = 1
+							else:
+								self.turns = None
+								self.round = None
+								self.disscussion = 0
+					else:
+						self.turns = None
+						self.round = None
+						self.disscussion = 0
+
 			# Add restrictions on 'open' action, since open a container twice will cause an env error
+			if action == "progress":
+				self.progress[i] = utils.get_message_name(action_dict_tobe_changed[i])
+				self.turns = 1
+				action_dict_tobe_changed[i] = None
+			if action == "metaplan":
+				self.metaplan[i] = utils.get_message_name(action_dict_tobe_changed[i])#TODO:remember to clean the list after get_observation function
+				action_dict_tobe_changed[i] = None
+				if self.ep_id == 0:
+					self.disscussion = 1
+					self.turns = 2
+					self.round = 0
+				else:
+					self.turns += 1
+			if action == "waiting":
+				action_dict_tobe_changed[i] = None
+			if action =="wait_for_disscussion":
+				action_dict_tobe_changed[i] = None
+				self.disscusion_status[i] = 1
 			if action == 'open':
 				goal_obj = int(re.findall(r'\d+', action_dict_tobe_changed[i])[0])
 				if 'OPEN' in self.get_states(goal_obj):
@@ -432,13 +491,17 @@ class UnityEnvironment(BaseUnityEnvironment):
 					print("Randomly changing walktowards action since the agent might get stuck")
 					random_flag = True
 			self.keep_move_steps[i] = self.keep_move_steps[i] + 1 if action == 'walktowards' and random_flag == False else 0
-
+		
 		script_list = utils.convert_action(action_dict_tobe_changed)#['<char0> [walktowards] <cabinet> (216)|<char1> [walktowards] <kitchen> (11)']
-		script_list_verbose = utils.convert_action(action_dict_verbose)
+		# if script_list[0] != '':
+		# 	script_list_verbose = utils.convert_action(action_dict_verbose)
+		# else:
+		script_list_verbose = action_dict_verbose
 		failed_execution = False
 		print(f"Step {self.steps}, Executing script: {script_list_verbose}")
-
+		#TODO:adding disscussion situation
 		if len(script_list[0]) > 0:
+			self.steps += 1
 			if self.recording_options['recording']:
 				assert False, "Recording not supported"
 				success, message = self.comm.render_script(script_list,
@@ -448,7 +511,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 														   camera_mode=self.recording_options['cameras'],
 														   file_name_prefix='task_{}'.format(self.task_id),
 														   image_synthesis=self.recording_optios['modality'])
-			else:
+			else:#render the action
 				individual_script = script_list[0].split('|')#['<char0> [walktowards] <cabinet> (216)', '<char1> [walktowards] <kitchen> (11)']
 				for i in range(len(individual_script)):# no time delay!!!
 					success, message = self.comm.render_script([individual_script[i]],
@@ -462,29 +525,51 @@ class UnityEnvironment(BaseUnityEnvironment):
 						failed_execution = True
 					else:
 						self.changed_graph = True
+		for action in actions:#TODO:check the step updating policy
+			if action == "send_message2":
+				self.step += 1
+		if self.disscusion_status[0] == 1 and self.disscusion_status[1] == 1:
+			self.disscusion_status = [0,0]
+			self.disscussion = 1
+			self.turns = 0
+			self.round = 0
+			self.call_for_disscussion = 0
+		else:
+			if not (self.disscusion_status[0] == self.disscusion_status[1]):
+				self.call_for_disscussion = 1
+		
 
+		
 		# Obtain reward
 		reward, done, info = self.reward()
 
 		graph = self.get_graph()
-		self.steps += 1
+		#TODO:disscussion will not be count in step
 
 #		obs = self.get_observations()
 		obs = None
 		# already get it in env.get_observations()
-
+		#TODO:update the get_observation function
 		info['finished'] = done
 		info['graph'] = graph
 		info['failed_exec'] = failed_execution
 		satisfied, unsatisfied = utils.check_progress(self.get_graph(), self.goal_spec[0])#check the structure
 		info['progress'] = {'satisfied': satisfied, 'unsatisfied': unsatisfied}
+		if self.ep_id == 0:
+			self.unsatisfied = unsatisfied
 		#satisfied:{'on_pudding_<coffeetable> (268)': [None, None], 'on_juice_<coffeetable> (268)': [None, None], 'on_apple_<coffeetable> (268)': [None, None], 'on_cupcake_<coffeetable> (268)': [None, None]}
 		#unsatisfied:{'on_pudding_<coffeetable> (268)': 1, 'on_juice_<coffeetable> (268)': 1, 'on_apple_<coffeetable> (268)': 1, 'on_cupcake_<coffeetable> (268)': 2}
+		
+		#triger 2
+		for task in list(unsatisfied.keys()):
+			if unsatisfied[task] < self.unsatisfied[task]:
+				self.call_for_disscussion = 1
+		self.unsatisfied = unsatisfied
 		if self.steps == self.max_episode_length:
 			done = True
 		messages = saying
 		self.message_said = saying		
-
+		self.ep_id += 1
 		if len(script_list[0]) == 0 and say == False and self.data_collection == True:
 			#stacked, recollect data	
 			print("Stacked")
@@ -544,6 +629,15 @@ class UnityEnvironment(BaseUnityEnvironment):
 						cv2.imwrite(os.path.join('saved_images', f"{agent_id}_{self.steps:03}_seg_reference.png"), rot_colorids)
 			dict_observations[agent_id] = self.get_observation(agent_id, obs_type)
 			self.location[agent_id].append(dict_observations[agent_id]['location'])
+			dict_observations[agent_id]["disscussion"] = self.disscussion
+			dict_observations[agent_id]["call_for_disscussion"] = self.call_for_disscussion
+			dict_observations[agent_id]["turns"] = self.turns
+			dict_observations[agent_id]["round"] = self.round
+			dict_observations[agent_id]["progress"] = self.progress
+			
+			dict_observations[agent_id]["metaplan"] = self.metaplan
+			
+			dict_observations[agent_id]["ep_id"] = self.ep_id
 			if self.data_collection:
 				def find_data_by_colors(rgb):
 					if rgb in self.cache_data_map.keys():
@@ -586,6 +680,8 @@ class UnityEnvironment(BaseUnityEnvironment):
 					cv2.imwrite(self.data_collection_dir + str(self.global_episode_id) + '_' + str(self.env_id) + '/' + str(self.steps) + '_' + str(agent_id) + '_color_ids_instance.png', color_id_instance[t])
 					cv2.imwrite(self.data_collection_dir + str(self.global_episode_id) + '_' + str(self.env_id) + '/' + str(self.steps) + '_' + str(agent_id) + '_ids_class.png', ids_class[t])
 					cv2.imwrite(self.data_collection_dir + str(self.global_episode_id) + '_' + str(self.env_id) + '/' + str(self.steps) + '_' + str(agent_id) + '_rgb.png', dict_observations[agent_id]['bgr'][t])
+		self.progress = [None,None]
+		self.metaplan = [None,None]
 		return dict_observations
 
 	def get_agent_location(self, agent_id):

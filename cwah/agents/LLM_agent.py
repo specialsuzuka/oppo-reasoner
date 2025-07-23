@@ -146,15 +146,15 @@ class LLM_agent:
 		return self.LLM.run(self.current_room, [self.id2node[x] for x in self.grabbed_objects], self.satisfied, self.unchecked_containers, self.ungrabbed_objects, self.id_inside_room[self.goal_location_id], self.action_history, self.dialogue_history, self.opponent_grabbed_objects, self.id_inside_room[self.opponent_agent_id])
 
 
-	def check_progress(self, state, goal_spec):
+	def check_progress(self, state, goal_spec):##need to debug
 		unsatisfied = {}
 		satisfied = []
 		id2node = {node['id']: node for node in state['nodes']}
 
-		for key, value in goal_spec.items():
+		for key, value in goal_spec.items():#goal_spec structure?
 			elements = key.split('_')
 			cnt = value[0]
-			for edge in state['edges']:
+			for edge in state['edges']:#what is edge?
 				if cnt == 0:
 					break
 				if edge['relation_type'].lower() == elements[0] and edge['to_id'] == self.goal_location_id and id2node[edge['from_id']]['class_name'] == elements[1]:
@@ -197,7 +197,7 @@ class LLM_agent:
 		satisfied, unsatisfied = self.check_progress(observation, goal)
 		# print(f"satisfied: {satisfied}")
 		if len(satisfied) > 0:
-			self.unsatisfied = unsatisfied
+			self.unsatisfied = unsatisfied#{'on_pudding_<coffeetable> (268)': 1, 'on_juice_<coffeetable> (268)': 1, 'on_apple_<coffeetable> (268)': 1, 'on_cupcake_<coffeetable> (268)': 2}
 			self.satisfied = satisfied
 		obs = self.filter_graph(observation)
 		self.grabbed_objects = []

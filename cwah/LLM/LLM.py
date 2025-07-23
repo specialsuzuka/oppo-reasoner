@@ -1,5 +1,4 @@
 import random
-
 import openai
 import torch
 import json
@@ -8,7 +7,6 @@ import pandas as pd
 from openai import OpenAIError
 import backoff
 from openai import OpenAI
-
 import logging
 from datetime import datetime
 
@@ -72,11 +70,14 @@ class LLM:
 		self.lm_id = lm_id
 		self.chat = 'gpt-3.5-turbo' in lm_id or 'gpt-4' in lm_id or 'deepseek' in lm_id or 'chatglm' in lm_id or 'chatgpt' in lm_id
 		self.OPENAI_KEY = None
-		self.total_cost = 0
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+
+		self.tokens = 0
 		self.communication_cost = 0
 		self.characters = 0
 		self.comm_num = 0
+
+		
 		if self.source == 'openai':
 			# openai.api_key = os.getenv("OPENAI_KEY")
 			#print(f"Using OpenAI API key: {os.getenv('OPENAI_KEY')}")
@@ -308,8 +309,7 @@ class LLM:
 			if f"{option} " in text or act in text or name in text or id in text:
 				return action
 		print("WARNING! No available action parsed!!! Random choose one")
-		return random.choice(available_actions)
-
+		return random.choice(available_actions) if len(available_actions) > 0 else ["wait"]  ##may cause exception
 
 	def progress2text(self, current_room, grabbed_objects, unchecked_containers, ungrabbed_objects, goal_location_room, satisfied, opponent_grabbed_objects, opponent_last_room, room_explored):
 		sss = {}
