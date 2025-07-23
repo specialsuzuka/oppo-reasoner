@@ -11,6 +11,7 @@ from pathlib import Path
 from envs.unity_environment import UnityEnvironment
 from envs.unity_environment_capo import UnityEnvironment_capo##TODO:change the env engine
 from agents import LLM_agent
+from agents.LLM_capo_agent import capo_agent
 from arguments import get_args
 from algos.arena_mp2 import ArenaMP
 
@@ -51,7 +52,7 @@ if __name__ == '__main__':
 
 
     def env_fn(env_id):
-        return UnityEnvironment(num_agents=2,
+        return UnityEnvironment_capo(num_agents=2,
                                max_episode_length=args.max_episode_length,
                                port_id=env_id,
                                env_task_set=env_task_set,
@@ -72,7 +73,7 @@ if __name__ == '__main__':
         'args': args,
     }
 
-    agents = [lambda x, y: LLM_agent(**args_agent1), lambda x, y: LLM_agent(**args_agent2)]
+    agents = [lambda x, y: capo_agent(**args_agent1), lambda x, y: capo_agent(**args_agent2)]
     arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents, args.record_dir, args.debug)
 
     # copy the code below to record results
@@ -95,6 +96,10 @@ if __name__ == '__main__':
         total_character_1 = 0
         total_comm_0 = 0
         total_comm_1 = 0
+        total_tokens_0 = 0
+        total_tokens_1 = 0
+        total_api_0 = 0
+        total_api_1 = 0
 
         for episode_id in test_episodes:
             curr_log_file_name = args.record_dir + '/logs_agent_{}_{}_{}.pik'.format(
@@ -107,6 +112,10 @@ if __name__ == '__main__':
             episode_character_1 = 0
             episode_comm_num_0 = 0
             episode_comm_num_1 = 0
+            episode_api_0 = 0
+            episode_api_1 = 0
+            episode_tokens_0 = 0
+            episode_tokens_1 = 0
 
             #log somehow
             if os.path.isfile(curr_log_file_name):
@@ -130,22 +139,34 @@ if __name__ == '__main__':
             arena.reset(episode_id)
             success, steps, saved_info = arena.run()
             #episode
-            episode_character_0 = arena.character_0
-            episode_character_1 = arena.character_1
-            episode_comm_num_0 = arena.comm_0
-            episode_comm_num_1 = arena.comm_1
+            episode_character_0 = agents[0].characters
+            episode_character_1 = agents[1].characters
+            episode_comm_num_0 = agents[0].comm_num
+            episode_comm_num_1 = agents[1].comm_num
+            episode_api_0 = agents[0].get_api()
+            episode_api_1 = agents[1].get_api()
+            episode_tokens_0 = agents[0].get_tokens()
+            episode_tokens_1 = agents[1].get_tokens()
             #whole
             total_character_0 += episode_character_0
             total_character_1 += episode_character_1
             total_comm_0 += episode_comm_num_0
             total_comm_1 += episode_comm_num_1
+            total_api_0 += episode_api_0
+            total_api_1 += episode_api_1
+            total_tokens_0 += episode_tokens_0
+            total_tokens_1 += episode_tokens_1
             os.makedirs("./count",exist_ok=True)
             with open(f"./count/episode_{episode_id}.txt","a+") as f:
-                f.write(f"character_0:,{episode_character_0}")
-                f.write(f"character_1:,{episode_character_1}")
-                f.write(f"total_character:,{episode_character_0+episode_character_1}")
-                f.write(f"comm_0:,{episode_comm_num_0}")
-                f.write(f"comm_1:,{episode_comm_num_1}")
+                f.write(f"character_0:{episode_character_0}\n")
+                f.write(f"character_1:{episode_character_1}\n")
+                f.write(f"total_character:{episode_character_0+episode_character_1}\n")
+                f.write(f"comm_0:{episode_comm_num_0}\n")
+                f.write(f"comm_1:{episode_comm_num_1}\n")
+                f.write(f"api_0:{episode_api_0}\n")
+                f.write(f"api_1:{episode_api_1}\n")
+                f.write(f"tokens_0:{episode_tokens_0}\n")
+                f.write(f"tokens_1:{episode_tokens_1}\n")
             
             print('-------------------------------------')
             print('success' if success else 'failure')
@@ -174,16 +195,23 @@ if __name__ == '__main__':
 
             test_results[episode_id] = {'S': S[episode_id],
                                         'L': L[episode_id]}
+        os.makedirs("./iter_count",exist_ok=True)
         with open(f"./iter_count/{time.time()}{iter_id}.txt") as f:
-            f.write(f"total_character_0:{total_character_0}")
-            f.write(f"total_character_1:{total_character_1}")
-            f.write(f"total_character:{total_character_0+total_character_1}")
-            f.write(f"total_comm_0:{total_comm_0}")
-            f.write(f"total_comm_1:{total_comm_1}")
-            f.write(f"character_per_episode_0:{total_character_0/episode_ids}")
-            f.write(f"character_per_episode_1:{total_character_1/episode_ids}")
-            f.write(f"comm_per_episode_0:{total_comm_0/episode_ids}")
-            f.write(f"comm_per_episode_1:{total_comm_1/episode_ids}")
+            f.write(f"total_character_0:{total_character_0}\n")
+            f.write(f"total_character_1:{total_character_1}\n")
+            f.write(f"total_character:{total_character_0+total_character_1}\n")
+            f.write(f"total_comm_0:{total_comm_0}\n")
+            f.write(f"total_comm_1:{total_comm_1}\n")
+            f.write(f"character_per_episode_0:{total_character_0/len(episode_ids)}\n")
+            f.write(f"character_per_episode_1:{total_character_1/len(episode_ids)}\n")
+            f.write(f"comm_per_episode_0:{total_comm_0/len(episode_ids)}\n")
+            f.write(f"comm_per_episode_1:{total_comm_1/len(episode_ids)}\n")
+            f.write(f"total_api_0:{total_api_0}\n")
+            f.write(f"total_api_1:{total_api_1}\n")
+            f.write(f"total_api_per:{(total_api_0+total_api_1)/len(episode_ids)}\n")
+            f.write(f"total_tokens_0:{total_tokens_0}\n")
+            f.write(f"total_tokens_1:{total_tokens_1}\n")
+            f.write(f"total_tokens_per:{(total_tokens_0+total_tokens_1)/len(episode_ids)}\n")
 
 
         print('average steps (finishing the tasks):', np.array(steps_list).mean() if len(steps_list) > 0 else None)

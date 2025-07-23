@@ -369,9 +369,9 @@ class ArenaMP(object):
         obs = self.env.get_observations()#{0:{"messages":  ,"edges":  ,"nodes": } ,1:  }#TODO:need to change this function
         action_space = self.env.get_action_space()
         dict_actions, dict_info = self.get_actions(obs, action_space, true_graph=true_graph)
-        
+
         for i in range(len(dict_info)):
-            if len(dict_info) > 1 and 'subgoals' in dict_info[i]:## change here to check subgoal
+            if len(dict_info) > 1 and 'subgoals' in dict_info[i]:## TODO:trigger 2
                 dup = self.env.check_subgoal(dict_info[i]['subgoals'])
                 self.cnt_nouse_subgoal += dup
                 if i == 0 and 'subgoals' in dict_info[i + 1].keys() and dict_info[i]['subgoals'] == dict_info[i + 1]['subgoals']:
