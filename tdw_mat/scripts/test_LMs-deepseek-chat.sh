@@ -3,7 +3,7 @@ port=10008
 pkill -f -9 "port $port"
 
 python3 tdw-gym/challenge_oppo.py \
---output_dir results_coela \
+--output_dir results_coela_1 \
 --lm_id $lm_id \
 --experiment_name LMs-$lm_id \
 --run_id run_1 \

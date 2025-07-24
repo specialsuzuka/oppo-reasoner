@@ -128,8 +128,8 @@ class LLM_capo:
         if self.source == "openai":
             # OpenAI模型初始化
             client = OpenAI(
-                api_key="sk-tkQC6suw159dxQoCkSrf2pTmSbIBawo7pP15FQN7d5vfTCxO",
-                base_url="https://api.agicto.cn/v1",
+                api_key="sk-57d87ae693d94216971bc2905b0a2647",
+                base_url="https://api.deepseek.com",
             )
             if self.chat:
                 self.sampling_params = {
@@ -150,8 +150,8 @@ class LLM_capo:
         elif self.source == "deepseek":
             # DeepSeek模型初始化
             client = OpenAI(
-                api_key="sk-tkQC6suw159dxQoCkSrf2pTmSbIBawo7pP15FQN7d5vfTCxO",
-                base_url="https://api.agicto.cn/v1",
+                api_key="sk-57d87ae693d94216971bc2905b0a2647",
+                base_url="https://api.deepseek.com",
             )
             if self.chat:
                 self.sampling_params = {

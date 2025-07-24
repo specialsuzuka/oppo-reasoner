@@ -14,7 +14,6 @@ python3 tdw-gym/challenge_oppo.py \
 --max_tokens 512 \
 --data_prefix dataset/dataset_test/ \
 --eval_episodes 0 1 2 3 4 \
---screen_size 256 \
---no_save_img
+--screen_size 256
 
 pkill -f -9 "port $port"

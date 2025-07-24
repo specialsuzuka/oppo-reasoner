@@ -814,9 +814,9 @@ class lm_agent:
                 if lm_times > 3:
                     raise Exception(f"retrying LM_plan too many times")
                 plan, a_info = self.LLM_plan()
-                # self.episode_logger.debug(
-                #     f"agent_name: {self.agent_names[self.agent_id]}:LLM plan: {plan} at frame {self.num_frames}, step {self.steps}"
-                # )
+                self.episode_logger.debug(
+                    f"agent_name: {self.agent_names[self.agent_id]}:LLM plan: {plan} at frame {self.num_frames}, step {self.steps}"
+                )
                 if plan is None:  # NO AVAILABLE PLANS! Explore from scratch!
                     print("No more things to do!")
                     plan = f"[wait]"
